@@ -1,0 +1,807 @@
+<!doctype html>
+<html lang="ja">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>pROfitia - 収支管理</title>
+    <link rel="icon" href="favicon.svg" type="image/svg+xml" />
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+  <body>
+    <main class="app-shell">
+      <div class="sticky-top">
+        <section class="topbar" aria-label="概要">
+          <div>
+            <h1 class="app-title">
+              <button class="app-title-button" id="titleRefreshButton" type="button" aria-label="ページを更新">
+                <img id="titleLogoImage" src="assets/profitia-title.png" alt="pROfitia -収支管理-" />
+              </button>
+            </h1>
+          </div>
+          <div class="month-control">
+            <button class="icon-button" id="prevMonth" type="button" aria-label="前の月">‹</button>
+            <div class="period-mode-toggle" role="group" aria-label="表示単位">
+              <button class="mode-button active" id="weekModeButton" type="button" data-mode="week">週間</button>
+              <button class="mode-button" id="monthModeButton" type="button" data-mode="month">月間</button>
+            </div>
+            <div class="month-selectors hidden" id="monthSelectors">
+              <select id="yearInput" aria-label="年"></select>
+              <select id="monthInput" aria-label="月"></select>
+            </div>
+            <select id="periodPicker" aria-label="表示する収支区間"></select>
+            <button class="icon-button" id="nextMonth" type="button" aria-label="次の月">›</button>
+          </div>
+          <button class="top-collapse-button" id="topCollapseButton" type="button" aria-expanded="true">折りたたむ</button>
+        </section>
+
+        <section class="summary-grid" aria-label="月別サマリー">
+        <article class="summary-card planned-detail-summary-card">
+          <div class="planned-detail-row">
+            <div class="planned-detail-label">
+              <span>可用資金</span>
+              <button class="mini-register-button" id="plannedCashButton" type="button">登録</button>
+            </div>
+            <strong id="topPlannedCashTotal">¥0</strong>
+          </div>
+          <div class="planned-detail-row">
+            <span>売却予定合計</span>
+            <strong id="topPlannedSellDetailTotal">¥0</strong>
+          </div>
+          <div class="planned-detail-row buy-plan">
+            <span>購入予定合計</span>
+            <strong id="topPlannedBuyDetailTotal">¥0</strong>
+          </div>
+          <div class="planned-detail-row">
+            <span>差引予定</span>
+            <strong id="topPlannedNetDetailTotal">¥0</strong>
+          </div>
+        </article>
+        <div class="summary-stack main-summary-stack">
+          <article class="summary-card compact-summary income">
+            <span>収入</span>
+            <strong id="incomeTotal">¥0</strong>
+          </article>
+          <article class="summary-card compact-summary expense">
+            <span>支出</span>
+            <strong id="expenseTotal">¥0</strong>
+          </article>
+        </div>
+        <article class="summary-card balance balance-summary-card">
+          <div class="target-summary-row" aria-label="月間収支目標">
+            <div class="target-summary-item">
+              <div class="target-summary-label">
+                <span id="targetBalanceLabel">月間収支目標</span>
+                <button class="mini-register-button" id="targetBalanceButton" type="button">登録</button>
+              </div>
+              <strong id="targetBalanceTotal">¥0</strong>
+            </div>
+            <div class="target-summary-item">
+              <span>差分</span>
+              <strong id="targetDiffTotal">¥0</strong>
+            </div>
+          </div>
+          <span>収支</span>
+          <strong id="balanceTotal">¥0</strong>
+        </article>
+        </section>
+
+        <nav class="tabs" aria-label="画面切り替え">
+          <button class="tab-button active" type="button" data-tab="entry">明細入力</button>
+          <button class="tab-button" type="button" data-tab="planned">予定入力</button>
+          <button class="tab-button" type="button" data-tab="search">検索</button>
+          <button class="tab-button" type="button" data-tab="summary">収支確認</button>
+          <button class="tab-button" type="button" data-tab="settings">設定</button>
+          <button class="help-page-button" id="openHelpButton" type="button">ヘルプ</button>
+          <a class="help-page-button" href="lp.html" target="_blank" rel="noopener noreferrer">説明</a>
+        </nav>
+      </div>
+
+      <section class="tab-panel active" id="entryPanel">
+        <section class="workspace" id="entryWorkspace">
+          <form class="entry-form" id="entryForm">
+            <div class="form-header">
+              <div>
+                <p class="market-eyebrow">Entry Form</p>
+                <h2>明細を追加</h2>
+              </div>
+              <div class="type-toggle" role="radiogroup" aria-label="種別">
+                <label>
+                  <input type="radio" name="type" value="income" checked />
+                  <span>収入</span>
+                </label>
+                <label>
+                  <input type="radio" name="type" value="expense" />
+                  <span>支出</span>
+                </label>
+                <label>
+                  <input type="radio" name="type" value="settlement" />
+                  <span>清算</span>
+                </label>
+              </div>
+            </div>
+
+            <div class="entry-date-row">
+              <div class="entry-date-field">
+                <div class="entry-date-label-row">
+                  <label for="dateInput">&#26085;&#20184;</label>
+                  <button class="date-today-button" id="todayDateButton" type="button">&#20170;&#26085;</button>
+                </div>
+                <input id="dateInput" type="date" required />
+              </div>
+              <button class="date-time-toggle-button" id="timeToggleButton" type="button" aria-expanded="false">&#26178;&#21051;&#12434;&#20837;&#21147;</button>
+              <input class="entry-time-input hidden" id="timeInput" type="time" />
+            </div>
+            <details class="entry-group-details" id="entryGroupDetails">
+              <summary>グループを選択</summary>
+              <label>
+                グループ
+                <select id="entryMapInput"></select>
+              </label>
+            </details>
+            <div class="entry-fields" id="incomeFields">
+              <label>
+                アイテム/項目
+                <input id="entryItemInput" type="text" inputmode="text" maxlength="32" placeholder="直接入力" list="itemHistoryOptions" />
+                <select class="entry-item-select hidden" id="entryItemSelect"></select>
+              </label>
+            </div>
+            <div class="entry-fields hidden" id="expenseFields">
+              <label>
+                アイテム/項目
+                <input id="expenseNameInput" type="text" inputmode="text" maxlength="32" placeholder="直接入力" list="itemHistoryOptions" />
+                <select class="entry-item-select hidden" id="expenseNameSelect"></select>
+              </label>
+            </div>
+            <div class="price-calc-block">
+              <div class="price-calc-header">
+                <span class="price-calc-actions">
+                  <button class="calc-mini-button" id="entryCalcAssistButton" type="button" tabindex="-1">計算アシスト</button>
+                </span>
+              </div>
+              <div class="price-quantity-row">
+                <div class="calc-field">
+                  <span class="field-label-row">
+                    <label id="unitPriceLabel" for="unitPriceInput">販売価格</label>
+                  </span>
+                  <input id="unitPriceInput" type="text" inputmode="text" placeholder="例: 500 / 1K / 100M" required />
+                </div>
+                <div class="calc-field">
+                  <span class="field-label-row">
+                    <label for="quantityInput">数量</label>
+                  </span>
+                  <input id="quantityInput" type="text" inputmode="text" value="1" required />
+                </div>
+                <label class="amount-field">
+                  金額
+                  <input id="amountInput" type="text" inputmode="text" tabindex="-1" placeholder="数量×販売価格" readonly required />
+                </label>
+              </div>
+            </div>
+            <div class="settlement-entry-block hidden" id="settlementFields">
+              <div class="settlement-main-column">
+              <div class="settlement-entry-subhead">
+                <span>清算明細</span>
+                <button class="calc-mini-button" id="addSettlementRowButton" type="button">行追加</button>
+              </div>
+              <div class="settlement-entry-head">
+                <span>アイテム/項目</span>
+                <span></span>
+                <span>&#36009;&#22770;&#20385;&#26684;</span>
+                <span>数量</span>
+                <span>金額</span>
+                <span></span>
+              </div>
+              <div class="settlement-entry-rows" id="settlementRows"></div>
+              <div class="settlement-entry-total">
+                <span>合計</span>
+                <strong id="settlementTotalAmount">¥0</strong>
+              </div>
+              <div class="settlement-entry-subhead">
+                <span class="purchase-title-group">
+                  <span>買取明細</span>
+                </span>
+                <button class="calc-mini-button" id="addPurchaseRowButton" type="button">行追加</button>
+              </div>
+              <div class="settlement-entry-head purchase-entry-head">
+                <span>アイテム/項目</span>
+                <span>買取者</span>
+                <span>買取価格</span>
+                <span>数量</span>
+                <span>金額</span>
+                <span></span>
+              </div>
+              <div class="settlement-entry-rows" id="purchaseRows"></div>
+              <div class="settlement-entry-total purchase-entry-total">
+                <span>合計</span>
+                <strong id="purchaseTotalAmount">¥0</strong>
+              </div>
+              </div>
+              <aside class="settlement-distribution-panel">
+              <div class="settlement-entry-total settlement-grand-total">
+                <label class="settlement-people-field">
+                  人数
+                  <input id="settlementPeopleCountInput" type="text" inputmode="text" value="1" />
+                </label>
+              </div>
+              <div class="buyer-distribution-list" id="buyerDistributionList"></div>
+              <p class="distribution-help-text">※追加対象にチェックを入れてください</p>
+              </aside>
+            </div>
+            <div class="entry-tag-block">
+              <div class="frequent-tag-row">
+                <span>タグ</span>
+                <span class="frequent-tag-list" id="frequentTagList" aria-label="よく使うタグ"></span>
+              </div>
+              <label class="tag-field">
+                <span class="visually-hidden">タグ</span>
+                <div class="tag-chip-input" id="tagChipInput">
+                  <div class="tag-chip-list" id="tagChipList"></div>
+                  <input id="tagsInput" type="text" inputmode="text" maxlength="40" placeholder="#タグ入力" />
+                </div>
+                <div class="tag-suggestion-list hidden" id="tagSuggestions"></div>
+              </label>
+            </div>
+            <button class="primary-button" type="submit">追加</button>
+          </form>
+
+          <section class="ledger-panel" aria-label="明細一覧">
+            <div class="ledger-toolbar">
+              <div>
+                <p class="market-eyebrow">Trade Summary</p>
+                <h2>収支取引概要</h2>
+              </div>
+            </div>
+            <div class="bar-panel">
+              <div class="category-bars collapsed" id="categoryBars" aria-label="収支内訳"></div>
+              <button class="expand-bars-button hidden" id="toggleBarsButton" type="button">全体を表示する</button>
+            </div>
+            <div class="ledger-toolbar log-toolbar">
+              <div>
+                <p class="market-eyebrow">Ledger Log</p>
+                <h2>明細ログ</h2>
+              </div>
+              <div class="filters">
+                <input id="searchInput" type="search" placeholder="検索" aria-label="明細を検索" />
+                <select id="typeFilter" aria-label="種別で絞り込み">
+                  <option value="all">すべて</option>
+                  <option value="income">収入</option>
+                  <option value="expense">支出</option>
+                </select>
+              </div>
+            </div>
+            <div class="ledger-list" id="ledgerList"></div>
+          </section>
+        </section>
+      </section>
+
+      <section class="tab-panel" id="searchPanel">
+        <section class="settings-panel search-panel" aria-label="アイテム検索">
+          <div class="settings-header">
+            <div>
+              <p class="market-eyebrow">Ledger Search</p>
+              <h2>明細検索</h2>
+            </div>
+          </div>
+          <div class="settings-grid search-control-grid">
+            <div class="search-date-range" aria-label="期間で検索">
+              <input id="searchStartDateInput" type="date" aria-label="検索開始日" />
+              <span>～</span>
+              <input id="searchEndDateInput" type="date" aria-label="検索終了日" />
+            </div>
+            <select id="typeSearchInput" aria-label="種別で検索">
+              <option value="all">すべて</option>
+              <option value="income">収入</option>
+              <option value="expense">支出</option>
+            </select>
+            <label class="tag-field search-tag-field" aria-label="タグで検索">
+              <div class="tag-chip-input" id="searchTagChipInput">
+                <div class="tag-chip-list" id="searchTagChipList"></div>
+                <input id="searchTagsInput" type="text" inputmode="text" maxlength="40" placeholder="#タグ検索" />
+              </div>
+              <div class="tag-suggestion-list hidden" id="searchTagSuggestions"></div>
+            </label>
+            <input id="itemSearchInput" type="search" inputmode="text" placeholder="アイテム/項目名で検索" aria-label="アイテム/項目名で検索" list="itemHistoryOptions" />
+            <button class="secondary-button" id="clearSearchButton" type="button">クリア</button>
+          </div>
+          <div class="search-total-grid hidden" id="searchTotals" aria-label="検索結果の収支合計"></div>
+          <p class="unit-price-trend-note">検索結果内のアイテムが1種類の場合、単価推移が表示されます。</p>
+          <div class="unit-price-trend-panel" id="unitPriceTrendPanel"></div>
+          <div class="search-results" id="itemSearchResults"></div>
+        </section>
+      </section>
+
+      <section class="tab-panel" id="plannedPanel">
+        <section class="settings-panel" aria-label="キャッシュフロー">
+          <div class="settings-header">
+            <div>
+              <p class="market-eyebrow">Cash Flow</p>
+              <h2>キャッシュフロー</h2>
+            </div>
+          </div>
+          <div class="planned-input-block">
+          <div class="type-toggle planned-type-toggle" role="radiogroup" aria-label="予定種別">
+            <label>
+              <input type="radio" name="plannedType" value="sell" checked />
+              <span>売却</span>
+            </label>
+            <label>
+              <input type="radio" name="plannedType" value="buy" />
+              <span>購入</span>
+            </label>
+          </div>
+          <div class="settings-grid item-entry-grid planned-entry-grid">
+            <label class="tag-field planned-tag-field" aria-label="タグ">
+              <div class="tag-chip-input" id="plannedTagChipInput">
+                <div class="tag-chip-list" id="plannedTagChipList"></div>
+                <input id="plannedTagsInput" type="text" inputmode="text" maxlength="40" placeholder="#タグ入力" />
+              </div>
+              <div class="tag-suggestion-list hidden" id="plannedTagSuggestions"></div>
+            </label>
+            <input id="plannedItemInput" type="text" inputmode="text" maxlength="32" placeholder="アイテム名" list="itemHistoryOptions" />
+            <input id="plannedAmountInput" type="text" inputmode="text" placeholder="予定額 例: 1K / 100M" />
+            <button class="secondary-button wide-add" id="addPlannedButton" type="button">予定追加</button>
+          </div>
+          </div>
+          <div class="planned-total-grid">
+            <div class="planned-total">可用資金 <strong id="plannedCashDisplay">¥0</strong></div>
+            <div class="planned-total">売却予定合計 <strong id="plannedSellTotal">¥0</strong></div>
+            <div class="planned-total">購入予定合計 <strong id="plannedBuyTotal">¥0</strong></div>
+            <div class="planned-total">差引予定 <strong id="plannedNetTotal">¥0</strong></div>
+          </div>
+          <div class="management-list" id="plannedList"></div>
+        </section>
+      </section>
+
+      <section class="tab-panel" id="summaryPanel">
+        <section class="market-panel" aria-label="収支確認">
+          <div class="market-header">
+            <div>
+              <p class="market-eyebrow">Performance Board</p>
+              <h2>収支確認</h2>
+            </div>
+          </div>
+          <section class="year-chart-panel market-chart-panel" aria-label="収入、支出、収支グラフ">
+            <div class="chart-heading">
+              <h3 id="trendChartTitle">過去12か月</h3>
+              <span>Income / Expense / Net</span>
+            </div>
+            <div class="year-chart" id="yearChart"></div>
+            <div class="chart-footer">
+              <div class="chart-legend">
+                <span><i class="legend-income"></i>収入</span>
+                <span><i class="legend-expense"></i>支出</span>
+                <span><i class="legend-net"></i>収支</span>
+                <span><i class="legend-target"></i>目標収支</span>
+              </div>
+              <div class="chart-axis-controls" aria-label="グラフ軸上限設定">
+                <button class="mini-register-button" id="barAxisMaxButton" type="button">収入/支出軸登録</button>
+                <span>収入/支出軸 <strong id="barAxisMaxDisplay">自動</strong></span>
+                <button class="mini-register-button" id="netAxisMaxButton" type="button">収支軸登録</button>
+                <span>収支軸 <strong id="netAxisMaxDisplay">自動</strong></span>
+              </div>
+            </div>
+          </section>
+          <div class="summary-lower-grid">
+            <div class="period-list" id="periodList"></div>
+            <div class="summary-detail" id="summaryDetail"></div>
+          </div>
+        </section>
+      </section>
+
+      <section class="tab-panel" id="mapsPanel">
+        <div class="settings-layout">
+          <nav class="settings-anchor-nav" aria-label="設定内メニュー">
+            <button type="button" data-settings-target="mapsPanel">グループ</button>
+            <button type="button" data-settings-target="itemsPanel">アイテム</button>
+            <button type="button" data-settings-target="linksPanel">グループ構成</button>
+            <button type="button" data-settings-target="settingsPanel">色テーマ</button>
+            <button type="button" data-settings-target="backupPanel">バックアップ</button>
+          </nav>
+          <div class="settings-content">
+        <section class="settings-panel" aria-label="グループ登録">
+          <div class="settings-header">
+            <div>
+              <p class="market-eyebrow">Group Master</p>
+              <h2>グループ</h2>
+            </div>
+          </div>
+          <div class="inline-add">
+            <input id="mapNameInput" type="text" inputmode="text" maxlength="32" placeholder="新しいグループ名" />
+            <button class="secondary-button" id="addMapButton" type="button">グループ追加</button>
+          </div>
+          <div class="management-list" id="mapList"></div>
+        </section>
+          <section class="tab-panel" id="itemsPanel">
+          <section class="settings-panel" aria-label="アイテム登録">
+          <div class="settings-header">
+          <div>
+          <p class="market-eyebrow">Item Master</p>
+          <h2>アイテム</h2>
+          </div>
+          </div>
+          <div class="settings-grid item-entry-grid">
+          <input id="itemNameInput" type="text" inputmode="text" maxlength="32" placeholder="新しいアイテム名" list="itemHistoryOptions" />
+          <input id="itemAmountInput" type="text" inputmode="text" placeholder="販売価格 例: 1K / 100M" />
+          <button class="secondary-button wide-add" id="addItemButton" type="button">アイテム追加</button>
+          </div>
+          <div class="management-list" id="itemList"></div>
+          </section>
+          </section>
+          </div>
+        </div>
+      </section>
+
+      <section class="tab-panel" id="linksPanel">
+        <section class="settings-panel" aria-label="グループ構成">
+          <div class="settings-header">
+            <div>
+              <p class="market-eyebrow">Group Item Link</p>
+              <h2>グループ構成</h2>
+            </div>
+          </div>
+          <div class="settings-grid">
+            <label>
+              グループ
+              <select id="linkMapInput"></select>
+            </label>
+            <label>
+              アイテム
+              <select id="linkItemInput"></select>
+            </label>
+            <button class="secondary-button wide-add" id="addLinkButton" type="button">グループ構成に追加</button>
+          </div>
+          <div class="map-list" id="linkList"></div>
+        </section>
+      </section>
+
+      <section class="tab-panel" id="settingsPanel">
+        <section class="settings-panel" aria-label="色テーマ">
+          <div class="settings-header">
+            <div>
+              <p class="market-eyebrow">Preferences</p>
+              <h2>色テーマ</h2>
+            </div>
+          </div>
+          <section class="theme-picker" aria-label="色テーマ">
+            <h3>色テーマ</h3>
+            <div class="theme-grid" id="themeGrid"></div>
+          </section>
+        </section>
+        <section class="settings-panel backup-settings-panel" id="backupPanel" aria-label="バックアップ">
+          <div class="settings-header">
+            <div>
+              <p class="market-eyebrow">Backup</p>
+              <h2>バックアップ</h2>
+            </div>
+          </div>
+          <section class="backup-panel" aria-label="エクスポートとインポート">
+            <h3>エクスポート / インポート</h3>
+            <div class="backup-actions">
+              <button class="secondary-button" id="exportDataButton" type="button">エクスポート</button>
+              <button class="secondary-button" id="importDataButton" type="button">インポート</button>
+              <input class="hidden" id="importDataInput" type="file" accept="application/json,.json" />
+            </div>
+          </section>
+        </section>
+      </section>
+    </main>
+
+    <template id="entryTemplate">
+      <article class="entry-item">
+        <div class="entry-date"></div>
+        <div class="entry-main">
+          <strong class="entry-memo"></strong>
+          <span class="entry-category"></span>
+        </div>
+        <div class="entry-amount"></div>
+      </article>
+    </template>
+
+    <div class="modal-backdrop hidden" id="editModal" role="dialog" aria-modal="true" aria-label="明細編集">
+      <form class="edit-dialog" id="editForm">
+        <div class="settings-header">
+          <h2>明細編集</h2>
+          <button class="delete-button" id="closeEditButton" type="button" aria-label="閉じる">×</button>
+        </div>
+        <div class="type-toggle" role="radiogroup" aria-label="編集する種別">
+          <label>
+            <input type="radio" name="editType" value="income" />
+            <span>収入</span>
+          </label>
+          <label>
+            <input type="radio" name="editType" value="expense" />
+            <span>支出</span>
+          </label>
+        </div>
+        <div class="edit-datetime-row">
+          <div class="edit-date-control">
+            <div class="edit-date-field">
+              <div class="edit-date-label-row">
+                <label for="editDateInput">&#26085;&#20184;</label>
+                <button class="date-today-button" id="editTodayDateButton" type="button">&#20170;&#26085;</button>
+              </div>
+              <input id="editDateInput" type="date" required />
+            </div>
+          </div>
+          <label class="edit-time-field">
+            時刻
+            <input id="editTimeInput" type="time" required />
+          </label>
+        </div>
+        <details class="entry-group-details edit-group-details" id="editGroupDetails">
+          <summary>&#12464;&#12523;&#12540;&#12503;&#12434;&#36984;&#25246;</summary>
+          <label>
+            &#12464;&#12523;&#12540;&#12503;
+            <select id="editMapInput"></select>
+          </label>
+        </details>
+        <div class="entry-fields" id="editIncomeFields">
+          <label>
+            &#12450;&#12452;&#12486;&#12512;/&#38917;&#30446;
+            <input id="editItemInput" type="text" inputmode="text" list="itemHistoryOptions" maxlength="32" placeholder="&#36984;&#25246;&#12414;&#12383;&#12399;&#30452;&#25509;&#20837;&#21147;" />
+            <select class="entry-item-select hidden" id="editItemSelect"></select>
+          </label>
+        </div>
+        <div class="entry-fields hidden" id="editExpenseFields">
+          <label>
+            &#12450;&#12452;&#12486;&#12512;/&#38917;&#30446;
+            <input id="editExpenseNameInput" type="text" inputmode="text" list="itemHistoryOptions" maxlength="32" placeholder="&#36984;&#25246;&#12414;&#12383;&#12399;&#30452;&#25509;&#20837;&#21147;" />
+            <select class="entry-item-select hidden" id="editExpenseNameSelect"></select>
+          </label>
+        </div>
+        <div class="price-calc-block edit-price-block">
+          <div class="price-calc-header">
+            <span class="price-calc-actions">
+              <button class="calc-mini-button" id="editCalcAssistButton" type="button" tabindex="-1">計算アシスト</button>
+            </span>
+          </div>
+          <div class="edit-price-row">
+            <div class="edit-income-price-field calc-field">
+              <span class="field-label-row">
+                <label for="editIncomeUnitPriceInput">販売価格</label>
+              </span>
+              <input id="editIncomeUnitPriceInput" type="text" inputmode="text" placeholder="例: 500 / 1K / 100M" required />
+            </div>
+            <div class="edit-expense-price-field calc-field">
+              <span class="field-label-row">
+                <label for="editExpenseUnitPriceInput">購入価格</label>
+              </span>
+              <input id="editExpenseUnitPriceInput" type="text" inputmode="text" placeholder="例: 500 / 1K / 100M" required />
+            </div>
+            <div class="edit-quantity-field calc-field">
+              <span class="field-label-row">
+                <label for="editQuantityInput">数量</label>
+              </span>
+              <input id="editQuantityInput" type="text" inputmode="text" required />
+            </div>
+            <label class="edit-amount-field">
+              金額
+              <input id="editAmountInput" type="text" inputmode="text" tabindex="-1" placeholder="例: 500 / 1K / 100M" readonly required />
+            </label>
+          </div>
+        </div>
+        <div class="edit-tags-field entry-tag-block">
+          <div class="frequent-tag-row">
+            <span>タグ</span>
+            <span class="frequent-tag-list" id="editFrequentTagList" aria-label="よく使うタグ"></span>
+          </div>
+          <label class="tag-field">
+            <span class="visually-hidden">タグ</span>
+            <div class="tag-chip-input" id="editTagChipInput">
+              <div class="tag-chip-list" id="editTagChipList"></div>
+              <input id="editTagsInput" type="text" inputmode="text" maxlength="40" placeholder="#タグ入力" />
+            </div>
+            <div class="tag-suggestion-list hidden" id="editTagSuggestions"></div>
+          </label>
+        </div>
+        <div class="edit-action-row">
+          <button class="danger-button" id="deleteEditEntryButton" type="button">削除</button>
+          <button class="primary-button edit-save-button" type="submit">保存</button>
+        </div>
+      </form>
+    </div>
+
+    <div class="modal-backdrop hidden" id="calcModal" role="dialog" aria-modal="true" aria-label="計算">
+      <form class="edit-dialog calc-dialog" id="calcForm">
+        <div class="settings-header">
+          <h2 id="calcTitle">計算アシスト</h2>
+          <button class="delete-button" id="closeCalcButton" type="button" aria-label="閉じる">×</button>
+        </div>
+        <div class="calc-mode-stack">
+          <div class="calc-mode-card">
+            <label class="calc-mode-title">
+              <input id="calcModeUnitPrice" type="radio" name="calcMode" value="unitPrice" />
+              <span>価格を計算する</span>
+            </label>
+            <div class="calc-equation-row">
+              <label>
+                金額
+                <input id="calcPriceAmountInput" type="text" inputmode="text" placeholder="例: 1K / 100M" />
+              </label>
+              <span class="calc-operator">÷</span>
+              <label>
+                数量
+                <input id="calcPriceQuantityInput" type="text" inputmode="text" placeholder="例: 10 / 300" />
+              </label>
+              <span class="calc-operator">=</span>
+              <label>
+                価格
+                <input id="calcPriceResultInput" type="text" inputmode="text" readonly />
+              </label>
+            </div>
+          </div>
+          <div class="calc-mode-card">
+            <label class="calc-mode-title">
+              <input id="calcModeQuantity" type="radio" name="calcMode" value="quantity" />
+              <span>数量を計算する</span>
+            </label>
+            <div class="calc-equation-row">
+              <label>
+                金額
+                <input id="calcQuantityAmountInput" type="text" inputmode="text" placeholder="例: 1K / 100M" />
+              </label>
+              <span class="calc-operator">÷</span>
+              <label>
+                価格
+                <input id="calcQuantityPriceInput" type="text" inputmode="text" placeholder="例: 1K / 100M" />
+              </label>
+              <span class="calc-operator">=</span>
+              <label>
+                数量
+                <input id="calcQuantityResultInput" type="text" inputmode="text" readonly />
+              </label>
+            </div>
+          </div>
+        </div>
+        <button class="primary-button" type="submit">反映</button>
+      </form>
+    </div>
+
+    <div class="modal-backdrop hidden" id="settlementModal" role="dialog" aria-modal="true" aria-label="清算">
+      <form class="edit-dialog calc-dialog" id="settlementForm">
+        <div class="settings-header">
+          <h2>清算</h2>
+          <button class="delete-button" id="closeSettlementButton" type="button" aria-label="閉じる">×</button>
+        </div>
+        <label>
+          <span>清算人数</span>
+          <input id="settlementPeopleInput" type="text" inputmode="text" placeholder="例: 4" required />
+        </label>
+        <label>
+          <span>販売価格</span>
+          <input id="settlementUnitPriceInput" type="text" inputmode="text" placeholder="例: 500 / 1K / 100M" required />
+        </label>
+        <label>
+          <span>清算後の数量</span>
+          <input id="settlementQuantityInput" type="text" inputmode="text" readonly />
+        </label>
+        <label>
+          <span>清算後の金額</span>
+          <input id="settlementAmountInput" type="text" inputmode="text" tabindex="-1" readonly />
+        </label>
+        <button class="primary-button" type="submit">反映</button>
+      </form>
+    </div>
+
+    <div class="modal-backdrop hidden" id="masterEditModal" role="dialog" aria-modal="true" aria-label="登録データ編集">
+      <form class="edit-dialog" id="masterEditForm">
+        <div class="settings-header">
+          <h2 id="masterEditTitle">編集</h2>
+          <button class="delete-button" id="closeMasterEditButton" type="button" aria-label="閉じる">×</button>
+        </div>
+        <label>
+          名前
+          <input id="masterNameInput" type="text" inputmode="text" maxlength="32" required />
+        </label>
+        <label id="masterAmountLabel">
+          販売価格
+          <input id="masterAmountInput" type="text" inputmode="text" placeholder="例: 1K / 100M" />
+        </label>
+        <div class="modal-actions">
+          <button class="danger-button" id="deleteMasterButton" type="button">削除</button>
+          <button class="primary-button" type="submit">保存</button>
+        </div>
+      </form>
+    </div>
+
+    <div class="modal-backdrop hidden" id="plannedEditModal" role="dialog" aria-modal="true" aria-label="売却・購入予定編集">
+      <form class="edit-dialog planned-edit-dialog" id="plannedEditForm">
+        <div class="settings-header">
+          <h2 id="plannedEditTitle">予定編集</h2>
+          <button class="delete-button" id="closePlannedEditButton" type="button" aria-label="閉じる">×</button>
+        </div>
+        <div class="type-toggle planned-type-toggle planned-edit-type-toggle" role="radiogroup" aria-label="予定種別">
+          <label>
+            <input type="radio" name="plannedEditType" value="sell" />
+            <span>売却</span>
+          </label>
+          <label>
+            <input type="radio" name="plannedEditType" value="buy" />
+            <span>購入</span>
+          </label>
+        </div>
+        <div class="entry-tag-block planned-edit-tags-block">
+          <div class="frequent-tag-row">
+            <span>タグ</span>
+            <span class="frequent-tag-list" id="plannedEditFrequentTagList" aria-label="よく使うタグ"></span>
+          </div>
+        <label class="tag-field" id="plannedEditTagsLabel">
+          <span class="visually-hidden">タグ</span>
+          <div class="tag-chip-input" id="plannedEditTagChipInput">
+            <div class="tag-chip-list" id="plannedEditTagChipList"></div>
+            <input id="plannedEditTagsInput" type="text" inputmode="text" maxlength="40" placeholder="#タグ入力" />
+          </div>
+          <div class="tag-suggestion-list hidden" id="plannedEditTagSuggestions"></div>
+        </label>
+        </div>
+        <div class="planned-edit-input-row">
+          <label>
+            アイテム名
+            <input id="plannedEditItemInput" type="text" inputmode="text" maxlength="32" list="itemHistoryOptions" required />
+          </label>
+          <label>
+            予定額
+            <input id="plannedEditAmountInput" type="text" inputmode="text" placeholder="例: 1K / 100M" required />
+          </label>
+        </div>
+        <button class="primary-button" type="submit">保存</button>
+      </form>
+    </div>
+
+    <div class="modal-backdrop hidden" id="settlementConfirmModal" role="dialog" aria-modal="true" aria-label="清算明細の追加確認">
+      <form class="edit-dialog settlement-confirm-dialog" id="settlementConfirmForm">
+        <div class="settings-header">
+          <div>
+            <p class="market-eyebrow">Settlement Preview</p>
+            <h2>清算明細の追加確認</h2>
+          </div>
+          <button class="delete-button" id="closeSettlementConfirmButton" type="button" aria-label="閉じる">×</button>
+        </div>
+        <p class="settlement-confirm-lead">以下の内容で明細に追加します。区分、アイテム/項目、数量、単価、金額を確認してください。</p>
+        <div class="settlement-confirm-list" id="settlementConfirmList"></div>
+        <div class="modal-actions">
+          <button class="secondary-button" id="cancelSettlementConfirmButton" type="button">キャンセル</button>
+          <button class="primary-button" type="submit">OK</button>
+        </div>
+      </form>
+    </div>
+
+    <div class="modal-backdrop hidden" id="helpModal" role="dialog" aria-modal="true" aria-label="画面内ヘルプ">
+      <section class="edit-dialog help-dialog">
+        <div class="settings-header">
+          <div>
+            <p class="market-eyebrow">Help</p>
+            <h2>画面内ヘルプ</h2>
+          </div>
+          <button class="delete-button" id="closeHelpButton" type="button" aria-label="閉じる">×</button>
+        </div>
+        <div class="help-content">
+          <section>
+            <h3>明細入力</h3>
+            <p>収入、支出、清算の3モードで明細を登録します。グループを展開すると、登録済みのグループ構成からアイテムを選択できます。</p>
+          </section>
+          <section>
+            <h3>清算</h3>
+            <p>複数アイテムの売上と買取明細をまとめて入力し、人数で割った配布金額を確認してから明細へ追加できます。</p>
+          </section>
+          <section>
+            <h3>予定入力</h3>
+            <p>可用資金、売却予定、購入予定を管理し、今後のキャッシュフローを確認します。</p>
+          </section>
+          <section>
+            <h3>明細検索・収支確認</h3>
+            <p>期間、タグ、種別、アイテム名で過去明細を検索できます。収支確認では週間・月間の推移やタグ別、アイテム別の内訳を確認します。</p>
+          </section>
+          <section>
+            <h3>バックアップ</h3>
+            <p>データはブラウザ内に保存されます。定期的に設定タブからエクスポートしてください。</p>
+          </section>
+        </div>
+        <button class="primary-button" id="helpCloseActionButton" type="button">閉じる</button>
+      </section>
+    </div>
+
+    <datalist id="itemHistoryOptions"></datalist>
+    <script src="app.js"></script>
+  </body>
+</html>
