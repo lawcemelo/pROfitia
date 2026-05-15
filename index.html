@@ -4,6 +4,18 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>pROfitia - 収支管理</title>
+    <meta name="description" content="RagnarokOnline向けの収支、予定、検索、清算、メモ管理を行うブラウザアプリです。" />
+    <meta property="og:title" content="pROfitia 収支管理支援アプリ" />
+    <meta property="og:description" content="RagnarokOnline向けの収支、予定、検索、清算、メモ管理を行うブラウザアプリです。" />
+    <meta property="og:type" content="website" />
+    <meta property="og:url" content="https://lawcemelo.github.io/pROfitia/" />
+    <meta property="og:image" content="https://lawcemelo.github.io/pROfitia/assets/ogp.png" />
+    <meta property="og:image:width" content="1920" />
+    <meta property="og:image:height" content="1280" />
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content="pROfitia 収支管理支援アプリ" />
+    <meta name="twitter:description" content="RagnarokOnline向けの収支、予定、検索、清算、メモ管理を行うブラウザアプリです。" />
+    <meta name="twitter:image" content="https://lawcemelo.github.io/pROfitia/assets/ogp.png" />
     <link rel="icon" href="favicon.svg" type="image/svg+xml" />
     <link rel="stylesheet" href="styles.css" />
   </head>
@@ -87,12 +99,12 @@
 
         <nav class="tabs" aria-label="画面切り替え">
           <button class="tab-button active" type="button" data-tab="entry">明細入力</button>
-          <button class="tab-button" type="button" data-tab="planned">予定入力</button>
+          <button class="tab-button" type="button" data-tab="planned">予定管理</button>
           <button class="tab-button" type="button" data-tab="search">検索</button>
           <button class="tab-button" type="button" data-tab="summary">収支確認</button>
+          <button class="tab-button" type="button" data-tab="memo">メモ</button>
           <button class="tab-button" type="button" data-tab="settings">設定</button>
           <button class="help-page-button" id="openHelpButton" type="button">ヘルプ</button>
-          <a class="help-page-button" href="lp.html" target="_blank" rel="noopener noreferrer">説明</a>
         </nav>
       </div>
 
@@ -388,6 +400,61 @@
         </section>
       </section>
 
+      <section class="tab-panel" id="memoPanel">
+        <section class="settings-panel memo-panel" aria-label="メモ">
+          <div class="settings-header">
+            <div>
+              <p class="market-eyebrow">Memo Board</p>
+              <h2>メモ</h2>
+            </div>
+          </div>
+          <div class="memo-input-block">
+            <label class="tag-field memo-tag-field">
+              <span class="visually-hidden">タグ</span>
+              <div class="tag-chip-input" id="memoTagChipInput">
+                <div class="tag-chip-list" id="memoTagChipList"></div>
+                <input id="memoTagInput" type="text" inputmode="text" maxlength="32" placeholder="#タグ" />
+              </div>
+              <div class="tag-suggestion-list hidden" id="memoTagSuggestions"></div>
+            </label>
+            <input id="memoTitleInput" type="text" inputmode="text" maxlength="48" placeholder="タイトル" />
+            <label class="memo-done-toggle">
+              <input id="memoDoneInput" type="checkbox" />
+              完了
+            </label>
+            <div class="memo-color-picker" id="memoColorPicker" aria-label="メモ色">
+              <label><input type="radio" name="memoColor" value="blue" checked /><span class="memo-color-swatch memo-color-blue"></span></label>
+              <label><input type="radio" name="memoColor" value="green" /><span class="memo-color-swatch memo-color-green"></span></label>
+              <label><input type="radio" name="memoColor" value="amber" /><span class="memo-color-swatch memo-color-amber"></span></label>
+              <label><input type="radio" name="memoColor" value="rose" /><span class="memo-color-swatch memo-color-rose"></span></label>
+              <label><input type="radio" name="memoColor" value="slate" /><span class="memo-color-swatch memo-color-slate"></span></label>
+            </div>
+            <textarea id="memoBodyInput" maxlength="2000" placeholder="メモしたい事を自由に記入してください"></textarea>
+            <div class="memo-action-row">
+              <button class="secondary-button" id="clearMemoButton" type="button">クリア</button>
+              <button class="primary-button" id="saveMemoButton" type="button">メモ追加</button>
+            </div>
+          </div>
+          <div class="memo-search-block">
+            <select id="memoDoneFilter" aria-label="完了状態">
+              <option value="all">すべて</option>
+              <option value="open" selected>未完了</option>
+              <option value="done">完了済</option>
+            </select>
+            <label class="tag-field memo-search-tag-field">
+              <span class="visually-hidden">タグ検索</span>
+              <div class="tag-chip-input" id="memoSearchTagChipInput">
+                <div class="tag-chip-list" id="memoSearchTagChipList"></div>
+                <input id="memoSearchTagInput" type="text" inputmode="text" maxlength="32" placeholder="#タグ検索" />
+              </div>
+              <div class="tag-suggestion-list hidden" id="memoSearchTagSuggestions"></div>
+            </label>
+            <input id="memoSearchInput" type="search" inputmode="text" placeholder="タイトル・内容で検索" />
+          </div>
+          <div class="memo-list" id="memoList"></div>
+        </section>
+      </section>
+
       <section class="tab-panel" id="mapsPanel">
         <div class="settings-layout">
           <nav class="settings-anchor-nav" aria-label="設定内メニュー">
@@ -396,6 +463,7 @@
             <button type="button" data-settings-target="linksPanel">グループ構成</button>
             <button type="button" data-settings-target="settingsPanel">色テーマ</button>
             <button type="button" data-settings-target="backupPanel">バックアップ</button>
+            <button type="button" data-settings-target="resetPanel">オールリセット</button>
           </nav>
           <div class="settings-content">
         <section class="settings-panel" aria-label="グループ登録">
@@ -482,8 +550,24 @@
               <input class="hidden" id="importDataInput" type="file" accept="application/json,.json" />
             </div>
           </section>
+          <section class="backup-panel reset-panel" id="resetPanel" aria-label="データのオールリセット">
+            <div>
+              <h3>データのオールリセット</h3>
+              <p>明細、予定、メモ、グループ、アイテム、グループ構成、色テーマなど、ブラウザ内に保存されているpROfitiaのデータをすべて削除します。</p>
+            </div>
+            <div class="backup-actions">
+              <button class="danger-button reset-data-button" id="resetAllDataButton" type="button">全データを削除</button>
+            </div>
+          </section>
         </section>
       </section>
+      <footer class="app-footer">
+        <span>© 2026 lawcemelo. All rights reserved.</span>
+        <span>
+          pROfitia 収支管理支援アプリ / Version 1.0.0
+          <a href="guide.html" target="_blank" rel="noopener noreferrer">説明</a>
+        </span>
+      </footer>
     </main>
 
     <template id="entryTemplate">
@@ -748,6 +832,48 @@
       </form>
     </div>
 
+    <div class="modal-backdrop hidden" id="memoEditModal" role="dialog" aria-modal="true" aria-label="メモ編集">
+      <form class="edit-dialog memo-edit-dialog" id="memoEditForm">
+        <div class="settings-header">
+          <h2>メモ編集</h2>
+          <button class="delete-button" id="closeMemoEditButton" type="button" aria-label="閉じる">×</button>
+        </div>
+        <div class="memo-edit-grid">
+          <label class="tag-field memo-tag-field">
+            <span class="visually-hidden">タグ</span>
+            <div class="tag-chip-input" id="memoEditTagChipInput">
+              <div class="tag-chip-list" id="memoEditTagChipList"></div>
+              <input id="memoEditTagInput" type="text" inputmode="text" maxlength="32" placeholder="#タグ" />
+            </div>
+            <div class="tag-suggestion-list hidden" id="memoEditTagSuggestions"></div>
+          </label>
+          <label>
+            タイトル
+            <input id="memoEditTitleInput" type="text" inputmode="text" maxlength="48" required />
+          </label>
+          <label class="memo-done-toggle memo-edit-done-toggle">
+            <input id="memoEditDoneInput" type="checkbox" />
+            完了
+          </label>
+          <div class="memo-color-picker memo-edit-color-picker" id="memoEditColorPicker" aria-label="メモ色">
+            <label><input type="radio" name="memoEditColor" value="blue" /><span class="memo-color-swatch memo-color-blue"></span></label>
+            <label><input type="radio" name="memoEditColor" value="green" /><span class="memo-color-swatch memo-color-green"></span></label>
+            <label><input type="radio" name="memoEditColor" value="amber" /><span class="memo-color-swatch memo-color-amber"></span></label>
+            <label><input type="radio" name="memoEditColor" value="rose" /><span class="memo-color-swatch memo-color-rose"></span></label>
+            <label><input type="radio" name="memoEditColor" value="slate" /><span class="memo-color-swatch memo-color-slate"></span></label>
+          </div>
+        </div>
+        <label>
+          内容
+          <textarea id="memoEditBodyInput" maxlength="2000"></textarea>
+        </label>
+        <div class="modal-actions">
+          <button class="danger-button" id="deleteMemoEditButton" type="button">削除</button>
+          <button class="primary-button" type="submit">保存</button>
+        </div>
+      </form>
+    </div>
+
     <div class="modal-backdrop hidden" id="settlementConfirmModal" role="dialog" aria-modal="true" aria-label="清算明細の追加確認">
       <form class="edit-dialog settlement-confirm-dialog" id="settlementConfirmForm">
         <div class="settings-header">
@@ -778,26 +904,29 @@
         <div class="help-content">
           <section>
             <h3>明細入力</h3>
-            <p>収入、支出、清算の3モードで明細を登録します。グループを展開すると、登録済みのグループ構成からアイテムを選択できます。</p>
+            <p>収入、支出、清算の3モードでゲーム内取引を登録します。価格、数量、金額を扱い、グループ構成やタグを使うと後から検索・集計しやすくなります。</p>
           </section>
           <section>
-            <h3>清算</h3>
-            <p>複数アイテムの売上と買取明細をまとめて入力し、人数で割った配布金額を確認してから明細へ追加できます。</p>
-          </section>
-          <section>
-            <h3>予定入力</h3>
-            <p>可用資金、売却予定、購入予定を管理し、今後のキャッシュフローを確認します。</p>
+            <h3>予定管理</h3>
+            <p>可用資金、売却予定、購入予定を管理します。予定はタグ付きで登録でき、並び替えや編集、明細への送信に対応しています。</p>
           </section>
           <section>
             <h3>明細検索・収支確認</h3>
-            <p>期間、タグ、種別、アイテム名で過去明細を検索できます。収支確認では週間・月間の推移やタグ別、アイテム別の内訳を確認します。</p>
+            <p>明細検索では期間、タグ、種別、アイテム/項目名で過去明細を検索できます。収支確認では週間・月間の推移、タグ別、アイテム/項目別の分布を確認できます。</p>
+          </section>
+          <section>
+            <h3>メモ</h3>
+            <p>ToDo、出来事、考えたことを自由に記録できます。タグ、色、完了状態を付けられ、検索やソート、一覧からの完了切替に対応しています。</p>
           </section>
           <section>
             <h3>バックアップ</h3>
-            <p>データはブラウザ内に保存されます。定期的に設定タブからエクスポートしてください。</p>
+            <p>データはブラウザ内に保存されます。端末変更やブラウザデータ削除に備えて、設定タブから定期的にエクスポートしてください。全データを初期化したい場合は、バックアップ内のオールリセットを使用できます。</p>
           </section>
         </div>
-        <button class="primary-button" id="helpCloseActionButton" type="button">閉じる</button>
+        <div class="help-actions">
+          <a class="help-detail-button" href="guide.html" target="_blank" rel="noopener noreferrer">詳細確認</a>
+          <button class="primary-button" id="helpCloseActionButton" type="button">閉じる</button>
+        </div>
       </section>
     </div>
 

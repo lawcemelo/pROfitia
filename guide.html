@@ -1,0 +1,370 @@
+<!doctype html>
+<html lang="ja">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>pROfitia 収支管理支援アプリ | 機能説明</title>
+    <meta name="description" content="pROfitia 収支管理支援アプリの機能説明ページです。明細入力、予定管理、検索、収支確認、メモ、設定の使い方を確認できます。" />
+    <meta property="og:title" content="pROfitia 収支管理支援アプリ | 機能説明" />
+    <meta property="og:description" content="pROfitia 収支管理支援アプリの機能説明ページです。明細入力、予定管理、検索、収支確認、メモ、設定の使い方を確認できます。" />
+    <meta property="og:type" content="website" />
+    <meta property="og:url" content="https://lawcemelo.github.io/pROfitia/guide.html" />
+    <meta property="og:image" content="https://lawcemelo.github.io/pROfitia/assets/ogp.png" />
+    <meta property="og:image:width" content="1920" />
+    <meta property="og:image:height" content="1280" />
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content="pROfitia 収支管理支援アプリ | 機能説明" />
+    <meta name="twitter:description" content="pROfitia 収支管理支援アプリの機能説明ページです。明細入力、予定管理、検索、収支確認、メモ、設定の使い方を確認できます。" />
+    <meta name="twitter:image" content="https://lawcemelo.github.io/pROfitia/assets/ogp.png" />
+    <link rel="icon" href="favicon.svg" type="image/svg+xml" />
+    <link rel="stylesheet" href="lp.css" />
+  </head>
+  <body>
+    <header class="guide-header">
+      <a class="guide-brand" href="guide.html">
+        <span>APP GUIDE</span>
+        pROfitia 収支管理支援アプリ
+      </a>
+      <nav class="guide-nav" aria-label="機能説明メニュー">
+        <a href="#overview">概要</a>
+        <a href="#features">機能</a>
+        <a href="#workflow">使い方</a>
+        <a href="#storage">保存とバックアップ</a>
+      </nav>
+      <a class="open-app-button" href="index.html">アプリを開く</a>
+    </header>
+
+    <main class="guide-shell">
+      <section class="guide-hero" id="overview">
+        <div class="guide-title">
+          <p class="eyebrow">RAGNAROK ONLINE LEDGER</p>
+          <h1>RagnarokOnline の売買、清算、予定、メモをまとめて管理するブラウザアプリ</h1>
+          <p>
+            pROfitia は、RagnarokOnline のゲーム内取引を想定した個人向けの収支管理支援アプリです。
+            明細入力、予定管理、明細検索、収支確認、メモ、設定をブラウザだけで扱えます。
+            アイテム/項目名、価格、数量、タグを中心に記録し、過去の取引、相場感、キャッシュフロー、金策状況を後から確認しやすくします。
+          </p>
+        </div>
+        <aside class="quick-index" aria-label="主な機能">
+          <h2>主な機能</h2>
+          <ul>
+            <li>収入、支出、清算の3モードで明細を登録</li>
+            <li>価格 × 数量から金額を自動計算</li>
+            <li>清算時の人数割り、買取者別の配布額計算</li>
+            <li>#タグによる分類、検索、収支確認</li>
+            <li>売却予定、購入予定、可用資金による予定管理</li>
+            <li>期間、区分、タグ、アイテム/項目名による明細検索</li>
+            <li>検索結果が1種類のアイテム/項目の場合の単価推移グラフ</li>
+            <li>週間・月間の収支推移、タグ別・アイテム/項目別の分布</li>
+            <li>ToDoや出来事を残せるメモ機能</li>
+            <li>グループ、アイテム、グループ構成、色テーマ、バックアップ管理</li>
+          </ul>
+        </aside>
+      </section>
+
+      <section class="guide-section" id="features">
+        <div class="section-heading">
+          <p class="eyebrow">FEATURES</p>
+          <h2>各タブの役割</h2>
+        </div>
+
+        <div class="tab-guide-grid">
+          <article class="guide-card">
+            <div class="card-head">
+              <span>01</span>
+              <h3>明細入力</h3>
+            </div>
+            <p>
+              ゲーム内の取引を登録する中心画面です。収入、支出、清算の3モードを切り替えて使います。
+              入力した明細は、同じ画面の収支取引概要と明細ログへ反映されます。
+            </p>
+            <div class="ui-shot entry-shot" aria-label="明細入力画面のイメージ">
+              <div class="shot-title">ENTRY FORM</div>
+              <div class="shot-toggle"><b>収入</b><span>支出</span><span>清算</span></div>
+              <div class="shot-row"><span>日付</span><b>2026/05/15</b><em>今日</em></div>
+              <div class="shot-row wide"><span>タグ</span><b>#投資 #装備更新</b></div>
+              <div class="shot-row wide"><span>アイテム/項目</span><b>仮名称A</b></div>
+              <div class="shot-split">
+                <div><span>販売価格</span><b>27,000,000</b></div>
+                <div><span>数量</span><b>700</b></div>
+              </div>
+            </div>
+            <ul>
+              <li>収入は販売価格、支出は購入価格として入力します。</li>
+              <li>価格と数量から金額を自動計算します。</li>
+              <li>1K、100M、1G、1T のような単位入力に対応しています。</li>
+              <li>アイテム/項目は直接入力できます。入力値に応じて過去データ候補も表示されます。</li>
+              <li>グループを展開すると、設定済みのグループ構成からアイテムを選択できます。</li>
+              <li>グループを閉じた状態で直接入力した場合、構成にあるアイテムならグループ付き、構成外ならグループなしで登録されます。</li>
+              <li>タグは # から始まるチップ形式で複数付与できます。</li>
+              <li>明細ログから登録済み明細をクリックすると編集できます。</li>
+            </ul>
+          </article>
+
+          <article class="guide-card">
+            <div class="card-head">
+              <span>02</span>
+              <h3>清算モード</h3>
+            </div>
+            <p>
+              複数アイテムを一括で登録し、人数で割った配布金額を確認するための入力モードです。
+              買取が発生して配布金額が一律にならない場合も、買取者ごとの配布額を確認してから明細へ追加できます。
+            </p>
+            <div class="ui-shot plan-shot" aria-label="清算モードのイメージ">
+              <div class="shot-title">SETTLEMENT</div>
+              <div class="shot-plan-row"><i></i><b>清算明細</b><span>仮名称B 90個</span><strong>11.16M</strong></div>
+              <div class="shot-plan-row"><i></i><b>買取明細</b><span>Aさん 買取 30M</span><strong>-30M</strong></div>
+              <div class="shot-total-grid">
+                <div><span>人数</span><b>3</b></div>
+                <div><span>通常</span><b>14.88M</b></div>
+                <div><span>Aさん</span><b class="red">-15.11M</b></div>
+              </div>
+            </div>
+            <ul>
+              <li>清算明細と買取明細を複数行で入力できます。</li>
+              <li>配布金額表で、通常または買取者ごとの追加対象を1つ選択します。</li>
+              <li>清算明細は人数割り後の収入として、選択対象に関係する買取明細は支出として登録候補に反映されます。</li>
+              <li>追加前に確認モーダルが表示され、区分、アイテム/項目、数量、単価、金額を確認できます。</li>
+              <li>清算明細の数量は人数割り後の数量として登録されます。</li>
+              <li>数量に小数が発生する場合、表示は読みやすく丸め、内部計算は登録金額と整合するように保持します。</li>
+            </ul>
+          </article>
+
+          <article class="guide-card">
+            <div class="card-head">
+              <span>03</span>
+              <h3>予定管理</h3>
+            </div>
+            <p>
+              売却予定、購入予定、可用資金を管理し、今後のキャッシュフローを確認する画面です。
+              買いたい装備に対して、どの売却予定を実行すれば資金が足りるかを見える化できます。
+            </p>
+            <div class="ui-shot plan-shot" aria-label="予定管理画面のイメージ">
+              <div class="shot-title">CASH FLOW</div>
+              <div class="shot-total-grid">
+                <div><span>可用資金</span><b class="blue">1.2G</b></div>
+                <div><span>売却予定</span><b>4.7G</b></div>
+                <div><span>購入予定</span><b class="red">3.1G</b></div>
+              </div>
+              <div class="shot-plan-row"><i></i><b class="blue">売却</b><span>#投資 仮名称C</span><strong>4.38G</strong></div>
+              <div class="shot-plan-row"><i></i><b class="red">購入</b><span>#装備 仮名称D</span><strong>-2.1G</strong></div>
+            </div>
+            <ul>
+              <li>売却/購入を切り替えて予定を登録できます。</li>
+              <li>予定にもタグを付けられます。</li>
+              <li>追加済み予定はドラッグで並び替えできます。</li>
+              <li>各行の累計差引で、上から順に実行した場合の資金推移を確認できます。</li>
+              <li>一覧行をクリックすると編集できます。</li>
+              <li>明細へ送ると、売却予定は収入、購入予定は支出として明細登録画面へ送られます。</li>
+            </ul>
+          </article>
+
+          <article class="guide-card">
+            <div class="card-head">
+              <span>04</span>
+              <h3>明細検索</h3>
+            </div>
+            <p>
+              登録済み明細を、期間、収入/支出区分、タグ、アイテム/項目名で検索できます。
+              過去にいくらで売買したか、特定タグの収支がどうだったかを確認するための画面です。
+            </p>
+            <div class="ui-shot search-shot" aria-label="明細検索画面のイメージ">
+              <div class="shot-title">ITEM SEARCH</div>
+              <div class="shot-filters">
+                <b>2026/05/01</b><span>～</span><b>2026/05/31</b><b>すべて</b>
+              </div>
+              <div class="shot-row wide"><span>タグ</span><b>#イベント #投資</b></div>
+              <div class="shot-table">
+                <span>日付</span><span>区分</span><span>数量</span><span>金額</span>
+                <b>05/09</b><b class="blue">収入</b><b>700</b><b>18.9M</b>
+                <b>05/08</b><b class="red">支出</b><b>1</b><b>-2.1G</b>
+              </div>
+            </div>
+            <ul>
+              <li>開始日と終了日を任意の日付で指定できます。</li>
+              <li>タグは複数指定でき、指定したいずれかのタグを含む明細がヒットします。</li>
+              <li>検索結果には収入合計、支出合計、収支合計が表示されます。</li>
+              <li>検索結果表は列ごとにソートできます。</li>
+              <li>検索結果の行をクリックすると、その明細を編集できます。</li>
+              <li>検索結果内のアイテム/項目が1種類の場合、収入・支出それぞれの単価推移グラフが自動表示されます。</li>
+            </ul>
+          </article>
+
+          <article class="guide-card">
+            <div class="card-head">
+              <span>05</span>
+              <h3>収支確認</h3>
+            </div>
+            <p>
+              週間または月間で集計した収支状況を確認する画面です。
+              収入、支出、収支の推移に加え、選択期間のタグ別・アイテム/項目別の明細分布を確認できます。
+            </p>
+            <div class="ui-shot chart-shot" aria-label="収支確認画面のイメージ">
+              <div class="shot-title">PERFORMANCE BOARD</div>
+              <div class="mini-chart">
+                <i style="height: 44%"></i>
+                <i style="height: 70%"></i>
+                <i style="height: 52%"></i>
+                <i style="height: 82%"></i>
+                <i style="height: 63%"></i>
+                <i style="height: 74%"></i>
+                <svg viewBox="0 0 240 90" aria-hidden="true">
+                  <polyline points="4,58 44,42 84,64 124,32 164,48 236,26" />
+                </svg>
+              </div>
+              <div class="shot-legend"><span>収入</span><span>支出</span><span>収支</span><span>目標収支</span></div>
+            </div>
+            <ul>
+              <li>週間と月間を切り替えて表示できます。</li>
+              <li>週間は火曜日12:00から翌火曜日11:59までを1期間として扱います。</li>
+              <li>月間は年と月を選択して表示できます。</li>
+              <li>週間表示では過去12週間、月間表示では過去12か月のグラフを確認できます。</li>
+              <li>収入/支出軸と収支軸は別軸で表示されます。</li>
+              <li>目標収支ライン、軸上限設定、タグ別・アイテム/項目別の分布を確認できます。</li>
+              <li>タグ別は件数、アイテム/項目別は数量合算を表示します。</li>
+            </ul>
+          </article>
+
+          <article class="guide-card">
+            <div class="card-head">
+              <span>06</span>
+              <h3>メモ</h3>
+            </div>
+            <p>
+              ToDo、起きた事、思った事、取引方針などを自由に記録する画面です。
+              明細とは別に、短期的な判断材料やあとで確認したい内容を残せます。
+            </p>
+            <div class="ui-shot settings-shot" aria-label="メモ画面のイメージ">
+              <div class="shot-title">MEMO BOARD</div>
+              <div class="shot-row wide"><span>タグ</span><b>#ToDo #装備更新</b></div>
+              <div class="shot-row wide"><span>タイトル</span><b>欺瞞に必要な耐性</b></div>
+              <div class="shot-table compact">
+                <span>完了</span><span>タグ</span>
+                <b>□</b><b>#ToDo</b>
+                <b>☑</b><b>#メモ</b>
+              </div>
+            </div>
+            <ul>
+              <li>タグ、タイトル、内容、完了状態、色を付けて登録できます。</li>
+              <li>メモ一覧は完了、タグ、タイトル、内容、作成日時、更新日時でソートできます。</li>
+              <li>デフォルト表示は未完了で、検索条件からすべて/未完了/完了済を切り替えられます。</li>
+              <li>一覧左端のチェックで完了状態を直接切り替えできます。</li>
+              <li>一覧行をクリックすると編集モーダルが開きます。</li>
+              <li>タグ検索とタイトル・内容検索を分けて絞り込みできます。</li>
+            </ul>
+          </article>
+
+          <article class="guide-card">
+            <div class="card-head">
+              <span>07</span>
+              <h3>設定</h3>
+            </div>
+            <p>
+              グループ、アイテム、グループ構成、色テーマ、バックアップを管理する画面です。
+              よく使うアイテムや固定相場で扱えるアイテムを登録しておくと、明細入力の負荷を下げられます。
+            </p>
+            <div class="ui-shot settings-shot" aria-label="設定画面のイメージ">
+              <div class="shot-title">SETTINGS</div>
+              <div class="settings-rail"><b>グループ</b><b>アイテム</b><b>グループ構成</b><b>色テーマ</b><b>バックアップ</b></div>
+              <div class="shot-table compact">
+                <span>アイテム名</span><span>販売価格</span>
+                <b>仮名称C</b><b>4.38G</b>
+                <b>仮名称D</b><b>2.1G</b>
+              </div>
+              <div class="theme-dots"><i></i><i></i><i></i><i></i><i></i></div>
+            </div>
+            <ul>
+              <li>グループは自由に登録、編集、削除できます。</li>
+              <li>アイテムには販売価格を登録できます。</li>
+              <li>グループ構成では、登録済みグループと登録済みアイテムを紐づけられます。</li>
+              <li>グループ構成を使うと、明細入力時に対象アイテムだけを選択できます。</li>
+              <li>色テーマを複数のテンプレートから選択できます。</li>
+              <li>エクスポート/インポートでバックアップと復元ができます。</li>
+            </ul>
+          </article>
+        </div>
+      </section>
+
+      <section class="guide-section" id="workflow">
+        <div class="section-heading">
+          <p class="eyebrow">WORKFLOW</p>
+          <h2>基本的な使い方</h2>
+        </div>
+        <div class="workflow-list">
+          <article>
+            <span>1</span>
+            <h3>よく使うデータを設定する</h3>
+            <p>設定タブでグループ、アイテム、グループ構成を登録します。固定価格や平均価格で扱えるアイテムを登録しておくと入力が速くなります。</p>
+          </article>
+          <article>
+            <span>2</span>
+            <h3>日々の取引を明細入力する</h3>
+            <p>収入、支出、清算のいずれかで明細を登録します。タグを付けておくと、検索や収支確認で目的別に振り返れます。</p>
+          </article>
+          <article>
+            <span>3</span>
+            <h3>予定管理で資金計画を見る</h3>
+            <p>可用資金を登録し、売却予定と購入予定を並べて、装備更新や投資のキャッシュフローを確認します。</p>
+          </article>
+          <article>
+            <span>4</span>
+            <h3>検索と収支確認で振り返る</h3>
+            <p>明細検索で過去取引を確認し、収支確認で週間・月間の推移やタグ別、アイテム/項目別の分布を見ます。</p>
+          </article>
+          <article>
+            <span>5</span>
+            <h3>メモで判断材料を残す</h3>
+            <p>欲しい装備、検証結果、ToDo、思ったことをメモに残します。完了状態や色、タグで整理できます。</p>
+          </article>
+        </div>
+      </section>
+
+      <section class="guide-section" id="storage">
+        <div class="section-heading">
+          <p class="eyebrow">STORAGE</p>
+          <h2>保存とバックアップ</h2>
+        </div>
+        <div class="storage-panel">
+          <p>
+            pROfitia のデータはクラウドDBではなく、利用しているブラウザ内に保存されます。
+            そのため、ブラウザの履歴削除、サイトデータ削除、端末変更、別ブラウザ利用などでデータにアクセスできなくなる場合があります。
+          </p>
+          <ul>
+            <li>定期的に設定タブのエクスポートでバックアップファイルを保存してください。</li>
+            <li>復元するときは、設定タブのインポートからバックアップファイルを読み込んでください。</li>
+            <li>すべての保存データを削除したい場合は、設定タブのバックアップ内にあるオールリセットを使用できます。</li>
+            <li>GitHub Pages で公開されたアプリを使う場合も、データは各ユーザーのブラウザごとに保存されます。</li>
+            <li>他の人とデータが共有されることはありません。共有したい場合は、バックアップファイルを渡してインポートする運用になります。</li>
+          </ul>
+        </div>
+      </section>
+
+      <section class="guide-section" id="license">
+        <div class="section-heading">
+          <p class="eyebrow">LICENSE</p>
+          <h2>著作権と利用条件</h2>
+        </div>
+        <div class="storage-panel">
+          <p>
+            pROfitia のソースコード、画面デザイン、説明文、画像、その他関連ファイルの著作権は lawcemelo に帰属します。
+            公開リポジトリや GitHub Pages で閲覧できる状態であっても、複製、改変、再配布、販売、ホスティング、派生物の公開を許可するものではありません。
+          </p>
+          <ul>
+            <li>個人利用として公開アプリを利用することはできます。</li>
+            <li>ソースコードや画面デザインの無断コピー、転載、再公開は禁止です。</li>
+            <li>利用条件の詳細はリポジトリ内の LICENSE を確認してください。</li>
+          </ul>
+        </div>
+      </section>
+
+      <footer class="guide-footer">
+        <span>© 2026 lawcemelo. All rights reserved.</span>
+        <span>
+          pROfitia 収支管理支援アプリ / Version 1.0.0
+          <a href="https://github.com/lawcemelo/pROfitia/blob/main/CHANGELOG.md" target="_blank" rel="noopener noreferrer">更新履歴</a>
+          <a href="https://github.com/lawcemelo/pROfitia/blob/main/LICENSE" target="_blank" rel="noopener noreferrer">ライセンス</a>
+        </span>
+      </footer>
+    </main>
+  </body>
+</html>

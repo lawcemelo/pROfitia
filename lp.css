@@ -657,3 +657,32 @@ h1 {
     flex-wrap: wrap;
   }
 }
+
+.guide-footer {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  margin: 6px 0 0;
+  padding: 18px 4px 0;
+  border-top: 1px solid rgba(148, 163, 184, 0.34);
+  color: #64748b;
+  font-size: 0.78rem;
+  font-weight: 800;
+}
+
+.guide-footer a {
+  margin-left: 10px;
+  color: #315c9b;
+  text-decoration: none;
+}
+
+.guide-footer a:hover {
+  text-decoration: underline;
+}
+
+@media (max-width: 560px) {
+  .guide-footer {
+    flex-direction: column;
+    gap: 4px;
+  }
+}

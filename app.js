@@ -4,6 +4,7 @@ const ITEM_LIST_STORAGE_KEY = "game-ledger-item-list";
 const LINK_STORAGE_KEY = "game-ledger-map-item-links";
 const THEME_STORAGE_KEY = "game-ledger-theme";
 const PLANNED_STORAGE_KEY = "game-ledger-planned-purchases";
+const MEMO_STORAGE_KEY = "game-ledger-memos";
 const PLANNED_CASH_STORAGE_KEY = "game-ledger-planned-cash";
 const TOP_COLLAPSED_STORAGE_KEY = "game-ledger-top-collapsed";
 const TARGET_BALANCE_STORAGE_KEY = "game-ledger-target-balance";
@@ -16,6 +17,27 @@ const MONTHLY_BAR_AXIS_MAX_STORAGE_KEY = "game-ledger-monthly-bar-axis-max";
 const MONTHLY_NET_AXIS_MAX_STORAGE_KEY = "game-ledger-monthly-net-axis-max";
 const LEGACY_ENTRY_STORAGE_KEY = "money-journal-entries";
 const LEGACY_MAP_STORAGE_KEY = "game-ledger-maps";
+const APP_STORAGE_KEYS = [
+  ENTRY_STORAGE_KEY,
+  MAP_LIST_STORAGE_KEY,
+  ITEM_LIST_STORAGE_KEY,
+  LINK_STORAGE_KEY,
+  THEME_STORAGE_KEY,
+  PLANNED_STORAGE_KEY,
+  MEMO_STORAGE_KEY,
+  PLANNED_CASH_STORAGE_KEY,
+  TOP_COLLAPSED_STORAGE_KEY,
+  TARGET_BALANCE_STORAGE_KEY,
+  WEEKLY_TARGET_BALANCE_STORAGE_KEY,
+  BAR_AXIS_MAX_STORAGE_KEY,
+  NET_AXIS_MAX_STORAGE_KEY,
+  WEEKLY_BAR_AXIS_MAX_STORAGE_KEY,
+  WEEKLY_NET_AXIS_MAX_STORAGE_KEY,
+  MONTHLY_BAR_AXIS_MAX_STORAGE_KEY,
+  MONTHLY_NET_AXIS_MAX_STORAGE_KEY,
+  LEGACY_ENTRY_STORAGE_KEY,
+  LEGACY_MAP_STORAGE_KEY,
+];
 const TITLE_LOGO_LIGHT = "assets/profitia-title.png";
 const TITLE_LOGO_DARK = "assets/profitia-title-dark.png";
 const DISPLAY_QUANTITY_DECIMALS = 2;
@@ -161,6 +183,7 @@ const state = {
   items: loadItems(),
   links: loadLinks(),
   plannedPurchases: loadPlannedPurchases(),
+  memos: loadMemos(),
   plannedCash: Number(localStorage.getItem(PLANNED_CASH_STORAGE_KEY) || 0),
   theme: localStorage.getItem(THEME_STORAGE_KEY) || "default",
   periodMode: "week",
@@ -170,6 +193,7 @@ const state = {
   sendingPlannedId: "",
   editingPlannedId: "",
   editingMaster: null,
+  editingMemoId: "",
   draggingPlannedId: "",
   calcContext: null,
   settlementContext: null,
@@ -177,6 +201,9 @@ const state = {
   pendingSettlementEntries: [],
   unitPriceTrendCollapsed: false,
   searchSort: { key: "date", direction: "desc" },
+  tradeSummarySort: { key: "count", direction: "desc" },
+  breakdownSort: { key: "amount", direction: "desc" },
+  memoSort: { key: "updatedAt", direction: "desc" },
   search: "",
   typeFilter: "all",
   barsExpanded: false,
@@ -205,6 +232,7 @@ const elements = {
     search: document.querySelector("#searchPanel"),
     planned: document.querySelector("#plannedPanel"),
     summary: document.querySelector("#summaryPanel"),
+    memo: document.querySelector("#memoPanel"),
     maps: document.querySelector("#mapsPanel"),
     items: document.querySelector("#itemsPanel"),
     links: document.querySelector("#linksPanel"),
@@ -313,6 +341,33 @@ const elements = {
   plannedSellTotal: document.querySelector("#plannedSellTotal"),
   plannedNetTotal: document.querySelector("#plannedNetTotal"),
   plannedList: document.querySelector("#plannedList"),
+  memoEditModal: document.querySelector("#memoEditModal"),
+  memoEditForm: document.querySelector("#memoEditForm"),
+  closeMemoEdit: document.querySelector("#closeMemoEditButton"),
+  deleteMemoEdit: document.querySelector("#deleteMemoEditButton"),
+  memoTag: document.querySelector("#memoTagInput"),
+  memoTagChipInput: document.querySelector("#memoTagChipInput"),
+  memoTagChipList: document.querySelector("#memoTagChipList"),
+  memoTagSuggestions: document.querySelector("#memoTagSuggestions"),
+  memoTitle: document.querySelector("#memoTitleInput"),
+  memoDone: document.querySelector("#memoDoneInput"),
+  memoBody: document.querySelector("#memoBodyInput"),
+  memoSearchTag: document.querySelector("#memoSearchTagInput"),
+  memoSearchTagChipInput: document.querySelector("#memoSearchTagChipInput"),
+  memoSearchTagChipList: document.querySelector("#memoSearchTagChipList"),
+  memoSearchTagSuggestions: document.querySelector("#memoSearchTagSuggestions"),
+  memoSearch: document.querySelector("#memoSearchInput"),
+  memoDoneFilter: document.querySelector("#memoDoneFilter"),
+  memoEditTag: document.querySelector("#memoEditTagInput"),
+  memoEditTagChipInput: document.querySelector("#memoEditTagChipInput"),
+  memoEditTagChipList: document.querySelector("#memoEditTagChipList"),
+  memoEditTagSuggestions: document.querySelector("#memoEditTagSuggestions"),
+  memoEditTitle: document.querySelector("#memoEditTitleInput"),
+  memoEditDone: document.querySelector("#memoEditDoneInput"),
+  memoEditBody: document.querySelector("#memoEditBodyInput"),
+  clearMemo: document.querySelector("#clearMemoButton"),
+  saveMemo: document.querySelector("#saveMemoButton"),
+  memoList: document.querySelector("#memoList"),
   typeFilter: document.querySelector("#typeFilter"),
   template: document.querySelector("#entryTemplate"),
   themeGrid: document.querySelector("#themeGrid"),
@@ -389,6 +444,7 @@ const elements = {
   exportData: document.querySelector("#exportDataButton"),
   importData: document.querySelector("#importDataButton"),
   importDataInput: document.querySelector("#importDataInput"),
+  resetAllData: document.querySelector("#resetAllDataButton"),
 };
 
 const yen = new Intl.NumberFormat("ja-JP", {
@@ -423,6 +479,9 @@ function bindEvents() {
   setupTagInput(elements.searchTags, elements.searchTagChipInput, elements.searchTagChipList, elements.searchTagSuggestions, renderItemSearchResults);
   setupTagInput(elements.plannedTags, elements.plannedTagChipInput, elements.plannedTagChipList, elements.plannedTagSuggestions);
   setupTagInput(elements.plannedEditTags, elements.plannedEditTagChipInput, elements.plannedEditTagChipList, elements.plannedEditTagSuggestions);
+  setupTagInput(elements.memoTag, elements.memoTagChipInput, elements.memoTagChipList, elements.memoTagSuggestions);
+  setupTagInput(elements.memoSearchTag, elements.memoSearchTagChipInput, elements.memoSearchTagChipList, elements.memoSearchTagSuggestions, renderMemos);
+  setupTagInput(elements.memoEditTag, elements.memoEditTagChipInput, elements.memoEditTagChipList, elements.memoEditTagSuggestions);
 
   elements.openHelp?.addEventListener("click", openHelpModal);
   elements.closeHelp?.addEventListener("click", closeHelpModal);
@@ -441,8 +500,10 @@ function bindEvents() {
   });
 
   elements.entryGroupDetails.addEventListener("toggle", () => {
-    if (!elements.entryGroupDetails.open) elements.entryMap.value = "";
-    updateEntryItemOptions();
+    const wasOpened = elements.entryGroupDetails.open;
+    const itemName = wasOpened ? reconcileEntryGroupOnOpen() : anyEntryItemName();
+    if (!elements.entryGroupDetails.open) syncEntryDirectItemName(itemName);
+    updateEntryItemOptions(itemName);
     updateEntryInputMode();
     fillUnitPriceFromSelectedItem();
     updateAmount();
@@ -493,10 +554,9 @@ function bindEvents() {
   });
 
   elements.editGroupDetails.addEventListener("toggle", () => {
-    const itemName = editType() === "income"
-      ? (elements.editGroupDetails.open ? elements.editItem.value.trim() || elements.editItemSelect.value : elements.editItemSelect.value || elements.editItem.value.trim())
-      : (elements.editGroupDetails.open ? elements.editExpenseName.value.trim() || elements.editExpenseNameSelect.value : elements.editExpenseNameSelect.value || elements.editExpenseName.value.trim());
-    if (!elements.editGroupDetails.open) elements.editMap.value = "";
+    const wasOpened = elements.editGroupDetails.open;
+    const itemName = wasOpened ? reconcileEditGroupOnOpen() : anyEditItemName();
+    if (!elements.editGroupDetails.open) syncEditDirectItemName(itemName);
     updateEditItemOptions(itemName);
     updateEditInputMode();
     if (editType() === "income") fillEditUnitPriceFromItem();
@@ -539,7 +599,7 @@ function bindEvents() {
       date: elements.date.value,
       time: currentEntryTime(),
       amount: parseAmount(elements.amount.value),
-      map: elements.entryMap.value,
+      map: resolvedEntryMap(itemName),
       item: itemName,
       quantity: parseQuantityInput(elements.quantity.value) || 1,
       unitPrice: currentUnitPrice(),
@@ -577,7 +637,14 @@ function bindEvents() {
     }
 
     if (event.target.id === "entryMapInput") {
-      updateEntryItemOptions();
+      const itemName = anyEntryItemName();
+      if (!confirmClearItemOutsideGroup(elements.entryMap, itemName, clearEntryItemFields)) {
+        updateEntryItemOptions(itemName);
+        fillUnitPriceFromSelectedItem();
+        updateAmount();
+        return;
+      }
+      updateEntryItemOptions(anyEntryItemName());
       fillUnitPriceFromSelectedItem();
       updateAmount();
     }
@@ -799,6 +866,35 @@ function bindEvents() {
   elements.plannedList.addEventListener("drop", handlePlannedDrop);
   elements.plannedList.addEventListener("dragend", handlePlannedDragEnd);
 
+  elements.saveMemo.addEventListener("click", saveMemo);
+  elements.clearMemo.addEventListener("click", confirmClearMemoForm);
+  elements.memoSearch.addEventListener("input", renderMemos);
+  elements.memoDoneFilter.addEventListener("change", renderMemos);
+  elements.memoList.addEventListener("click", (event) => {
+    const sortButton = event.target.closest(".memo-sort-button");
+    if (sortButton) {
+      updateMemoSort(sortButton.dataset.sort);
+      return;
+    }
+    const doneToggle = event.target.closest(".memo-list-done");
+    if (doneToggle) {
+      event.stopPropagation();
+      toggleMemoDone(doneToggle.dataset.id, doneToggle.checked);
+      return;
+    }
+    const row = event.target.closest(".memo-card");
+    if (row) openMemoForEdit(row.dataset.id);
+  });
+  elements.memoEditForm.addEventListener("submit", saveMemoEdit);
+  elements.closeMemoEdit.addEventListener("click", closeMemoEditModal);
+  elements.deleteMemoEdit.addEventListener("click", deleteMemoFromEdit);
+  document.querySelectorAll('input[name="memoEditColor"]').forEach((input) => {
+    input.addEventListener("change", () => updateMemoEditDialogColor(memoEditColor()));
+  });
+  elements.memoEditModal.addEventListener("click", (event) => {
+    if (event.target === elements.memoEditModal) closeMemoEditModal();
+  });
+
   elements.typeFilter.addEventListener("change", () => {
     state.typeFilter = elements.typeFilter.value;
     render();
@@ -807,6 +903,18 @@ function bindEvents() {
   elements.toggleBars.addEventListener("click", () => {
     state.barsExpanded = !state.barsExpanded;
     updateBarsExpandedState();
+  });
+
+  elements.categoryBars.addEventListener("click", (event) => {
+    const button = event.target.closest(".bar-sort-button");
+    if (!button) return;
+    updateTradeSummarySort(button.dataset.sort);
+  });
+
+  elements.summaryDetail.addEventListener("click", (event) => {
+    const button = event.target.closest(".breakdown-sort-button");
+    if (!button) return;
+    updateBreakdownSort(button.dataset.sort);
   });
 
   elements.ledgerList.addEventListener("click", (event) => {
@@ -828,7 +936,14 @@ function bindEvents() {
     }
 
     if (event.target.id === "editMapInput") {
-      updateEditItemOptions(currentEditItemName());
+      const itemName = anyEditItemName();
+      if (!confirmClearItemOutsideGroup(elements.editMap, itemName, clearEditItemFields)) {
+        updateEditItemOptions(itemName);
+        if (editType() === "income") fillEditUnitPriceFromItem();
+        updateEditAmount();
+        return;
+      }
+      updateEditItemOptions(anyEditItemName());
       if (editType() === "income") fillEditUnitPriceFromItem();
       updateEditAmount();
     }
@@ -950,6 +1065,7 @@ function bindEvents() {
   elements.exportData.addEventListener("click", exportAppData);
   elements.importData.addEventListener("click", () => elements.importDataInput.click());
   elements.importDataInput.addEventListener("change", importAppData);
+  elements.resetAllData?.addEventListener("click", resetAllAppData);
   elements.frequentTagList.addEventListener("click", (event) => {
     event.preventDefault();
     event.stopPropagation();
@@ -1035,9 +1151,7 @@ function setupMoneyUnitShortcuts() {
 function render() {
   updateItemHistoryOptions();
   const period = currentRange();
-  const periodEntries = state.entries
-    .filter((entry) => isEntryInPeriod(entry, period.start, period.end))
-    .sort(compareEntriesNewestFirst);
+  const periodEntries = entriesForCurrentPeriod();
 
   const income = sum(periodEntries.filter((entry) => entry.type === "income"));
   const expense = sum(periodEntries.filter((entry) => entry.type === "expense"));
@@ -1061,6 +1175,7 @@ function render() {
   renderYearChart();
   renderItemSearchResults();
   renderPlannedPurchases();
+  renderMemos();
   updateTagOptions();
 }
 
@@ -1717,6 +1832,242 @@ function reorderPlannedPurchase(draggedId, targetId) {
   renderPlannedPurchases();
 }
 
+function memoColor() {
+  return document.querySelector('input[name="memoColor"]:checked')?.value || "blue";
+}
+
+function memoEditColor() {
+  return document.querySelector('input[name="memoEditColor"]:checked')?.value || "blue";
+}
+
+function setMemoColor(value, groupName = "memoColor") {
+  const color = ["blue", "green", "amber", "rose", "slate"].includes(value) ? value : "blue";
+  const input = document.querySelector(`input[name="${groupName}"][value="${color}"]`);
+  if (input) input.checked = true;
+}
+
+function updateMemoEditDialogColor(color) {
+  elements.memoEditForm.classList.remove(
+    "memo-edit-color-blue",
+    "memo-edit-color-green",
+    "memo-edit-color-amber",
+    "memo-edit-color-rose",
+    "memo-edit-color-slate",
+  );
+  elements.memoEditForm.classList.add(`memo-edit-color-${["blue", "green", "amber", "rose", "slate"].includes(color) ? color : "blue"}`);
+}
+
+function normalizeMemoTag(tag) {
+  const value = String(tag || "").trim();
+  if (!value) return "";
+  return value.startsWith("#") ? value : `#${value}`;
+}
+
+function normalizeMemoTags(memo) {
+  if (Array.isArray(memo.tags)) return normalizeTags(memo.tags);
+  return normalizeTags(memo.tag ? [memo.tag] : []);
+}
+
+function clearMemoForm() {
+  setTagValues(elements.memoTag, elements.memoTagChipList, []);
+  elements.memoTitle.value = "";
+  elements.memoBody.value = "";
+  elements.memoDone.checked = false;
+  setMemoColor("blue");
+}
+
+function confirmClearMemoForm() {
+  const hasInput = getTagValues(elements.memoTag).length > 0
+    || elements.memoTitle.value.trim()
+    || elements.memoBody.value.trim()
+    || elements.memoDone.checked;
+  if (!hasInput || window.confirm("入力中のメモをクリアしますか？")) clearMemoForm();
+}
+
+function saveMemo() {
+  const title = elements.memoTitle.value.trim();
+  const body = elements.memoBody.value.trim();
+  if (!title && !body) return;
+
+  const now = new Date().toISOString();
+  state.memos.unshift({
+    id: crypto.randomUUID(),
+    tags: getTagValues(elements.memoTag),
+    title: title || "無題",
+    body,
+    done: elements.memoDone.checked,
+    color: memoColor(),
+    createdAt: now,
+    updatedAt: now,
+  });
+
+  saveMemos();
+  clearMemoForm();
+  renderMemos();
+}
+
+function openMemoForEdit(id) {
+  const memo = state.memos.find((item) => item.id === id);
+  if (!memo) return;
+  state.editingMemoId = id;
+  setTagValues(elements.memoEditTag, elements.memoEditTagChipList, memo.tags || (memo.tag ? [memo.tag] : []));
+  elements.memoEditTitle.value = memo.title || "";
+  elements.memoEditBody.value = memo.body || "";
+  elements.memoEditDone.checked = Boolean(memo.done);
+  setMemoColor(memo.color, "memoEditColor");
+  updateMemoEditDialogColor(memo.color);
+  elements.memoEditModal.classList.remove("hidden");
+  elements.memoEditTitle.focus();
+}
+
+function closeMemoEditModal() {
+  state.editingMemoId = "";
+  elements.memoEditModal.classList.add("hidden");
+}
+
+function saveMemoEdit(event) {
+  event.preventDefault();
+  const memo = state.memos.find((item) => item.id === state.editingMemoId);
+  if (!memo) return;
+  const title = elements.memoEditTitle.value.trim();
+  const body = elements.memoEditBody.value.trim();
+  if (!title && !body) return;
+
+  memo.tags = getTagValues(elements.memoEditTag);
+  memo.title = title || "無題";
+  memo.body = body;
+  memo.done = elements.memoEditDone.checked;
+  memo.color = memoEditColor();
+  memo.updatedAt = new Date().toISOString();
+  state.memos.sort((a, b) => new Date(b.updatedAt) - new Date(a.updatedAt));
+  saveMemos();
+  closeMemoEditModal();
+  renderMemos();
+}
+
+function deleteMemoFromEdit() {
+  if (!state.editingMemoId) return;
+  if (!window.confirm("このメモを削除しますか？")) return;
+  state.memos = state.memos.filter((memo) => memo.id !== state.editingMemoId);
+  saveMemos();
+  closeMemoEditModal();
+  renderMemos();
+}
+
+function toggleMemoDone(id, done) {
+  const memo = state.memos.find((item) => item.id === id);
+  if (!memo) return;
+  memo.done = done;
+  memo.updatedAt = new Date().toISOString();
+  saveMemos();
+  renderMemos();
+}
+
+function memoMatchesSearch(memo, keyword) {
+  const selectedTags = getTagValues(elements.memoSearchTag);
+  const memoTags = normalizeTags(memo.tags || (memo.tag ? [memo.tag] : []));
+  const tagMatched = selectedTags.length === 0 || selectedTags.some((tag) => memoTags.includes(tag));
+  if (!tagMatched) return false;
+  const doneFilter = elements.memoDoneFilter.value;
+  if (doneFilter === "open" && memo.done) return false;
+  if (doneFilter === "done" && !memo.done) return false;
+  if (!keyword) return true;
+  const haystack = `${memo.title || ""} ${memo.body || ""}`.toLowerCase();
+  return haystack.includes(keyword.toLowerCase());
+}
+
+function updateMemoSort(key) {
+  if (!key) return;
+  if (state.memoSort.key === key) {
+    state.memoSort.direction = state.memoSort.direction === "asc" ? "desc" : "asc";
+  } else {
+    state.memoSort = { key, direction: ["tag", "title", "body"].includes(key) ? "asc" : "desc" };
+  }
+  renderMemos();
+}
+
+function memoSortHeader(key, label) {
+  const active = state.memoSort.key === key;
+  const mark = active ? (state.memoSort.direction === "asc" ? " ▲" : " ▼") : "";
+  return `<button class="memo-sort-button ${active ? "active" : ""}" type="button" data-sort="${key}">${escapeHTML(label)}${mark}</button>`;
+}
+
+function compareMemoRows(a, b) {
+  const direction = state.memoSort.direction === "asc" ? 1 : -1;
+  const aValue = memoSortValue(a, state.memoSort.key);
+  const bValue = memoSortValue(b, state.memoSort.key);
+  let result = 0;
+  if (typeof aValue === "number" && typeof bValue === "number") {
+    result = aValue - bValue;
+  } else {
+    result = String(aValue).localeCompare(String(bValue), "ja", { numeric: true, sensitivity: "base" });
+  }
+  if (result === 0) {
+    result = Number(new Date(b.updatedAt || 0)) - Number(new Date(a.updatedAt || 0))
+      || String(a.title || "").localeCompare(String(b.title || ""), "ja", { numeric: true, sensitivity: "base" });
+  }
+  return result * direction;
+}
+
+function memoSortValue(memo, key) {
+  switch (key) {
+    case "done":
+      return memo.done ? 1 : 0;
+    case "tag":
+      return normalizeTags(memo.tags || (memo.tag ? [memo.tag] : [])).join(" ");
+    case "title":
+      return memo.title || "";
+    case "body":
+      return memo.body || "";
+    case "createdAt":
+      return Number(new Date(memo.createdAt || 0));
+    case "updatedAt":
+      return Number(new Date(memo.updatedAt || 0));
+    default:
+      return Number(new Date(memo.updatedAt || 0));
+  }
+}
+
+function renderMemos() {
+  elements.memoList.replaceChildren();
+  const keyword = elements.memoSearch.value.trim();
+  const memos = state.memos.filter((memo) => memoMatchesSearch(memo, keyword)).sort(compareMemoRows);
+  const header = document.createElement("div");
+  header.className = "memo-list-head";
+  header.innerHTML = `
+    ${memoSortHeader("done", "完了")}
+    ${memoSortHeader("tag", "タグ")}
+    ${memoSortHeader("title", "タイトル")}
+    ${memoSortHeader("body", "内容")}
+    ${memoSortHeader("createdAt", "作成日時")}
+    ${memoSortHeader("updatedAt", "更新日時")}
+  `;
+  elements.memoList.append(header);
+  if (memos.length === 0) {
+    const empty = document.createElement("div");
+    empty.className = "empty-state compact-empty";
+    empty.textContent = keyword ? "該当するメモはありません。" : "メモはまだありません。";
+    elements.memoList.append(empty);
+    return;
+  }
+
+  for (const memo of memos) {
+    const card = document.createElement("article");
+    card.className = `memo-card memo-color-${memo.color || "blue"}${memo.done ? " memo-done" : ""}`;
+    card.dataset.id = memo.id;
+    const body = memo.body || "";
+    card.innerHTML = `
+      <input class="memo-list-done" type="checkbox" data-id="${escapeHTML(memo.id)}" ${memo.done ? "checked" : ""} aria-label="完了" />
+      <span class="memo-list-tag">${escapeHTML((memo.tags || []).join(" ") || memo.tag || "#メモ")}</span>
+      <strong>${escapeHTML(memo.title || "無題")}</strong>
+      <p>${escapeHTML(body)}</p>
+      <time>${escapeHTML(memo.createdAt ? formatDateTime(new Date(memo.createdAt)) : "")}</time>
+      <time>${escapeHTML(memo.updatedAt ? formatDateTime(new Date(memo.updatedAt)) : "")}</time>
+    `;
+    elements.memoList.append(card);
+  }
+}
+
 function exportAppData() {
   const data = {
     app: "ro-ledger",
@@ -1727,6 +2078,7 @@ function exportAppData() {
     items: state.items,
     links: state.links,
     plannedPurchases: state.plannedPurchases,
+    memos: state.memos,
     plannedCash: state.plannedCash,
     theme: state.theme,
     targetBalance: state.targetBalance,
@@ -1762,6 +2114,7 @@ function importAppData(event) {
       state.plannedPurchases = Array.isArray(data.plannedPurchases)
         ? data.plannedPurchases.map((planned) => ({ ...planned, tags: normalizeTags(planned.tags), type: planned.type || "buy" }))
         : [];
+      state.memos = normalizeMemos(data.memos);
       state.plannedCash = Number(data.plannedCash || 0);
       state.theme = themes[data.theme] ? data.theme : "default";
       state.targetBalance = Number(data.targetBalance || 0);
@@ -1783,6 +2136,7 @@ function importAppData(event) {
       saveItems();
       saveLinks();
       savePlannedPurchases();
+      saveMemos();
       applyTheme(state.theme);
       updateThemeSelection();
       updateAxisLimitInputs();
@@ -1796,14 +2150,41 @@ function importAppData(event) {
   reader.readAsText(file);
 }
 
+function resetAllAppData() {
+  const firstConfirm = window.confirm(
+    "pROfitiaに保存されている全データを削除します。\nこの操作は元に戻せません。先にエクスポートしておくことを推奨します。\n続行しますか？",
+  );
+  if (!firstConfirm) return;
+
+  const typed = window.prompt("最終確認です。削除する場合は「削除」と入力してください。");
+  if (typed !== "削除") return;
+
+  APP_STORAGE_KEYS.forEach((key) => localStorage.removeItem(key));
+  window.alert("全データを削除しました。画面を再読み込みします。");
+  window.location.reload();
+}
+
+function entriesForCurrentPeriod() {
+  const period = currentRange();
+  return state.entries
+    .filter((entry) => isEntryInPeriod(entry, period.start, period.end))
+    .sort(compareEntriesNewestFirst);
+}
+
 function renderMapBars(entries) {
   const totals = new Map();
 
   for (const entry of entries) {
     const label = entry.item || entry.map || entry.category || "未設定項目";
-    const current = totals.get(label) || { amount: 0, count: 0 };
-    current.amount += entry.type === "income" ? entry.amount : -entry.amount;
-    current.count += 1;
+    const current = totals.get(label) || { income: 0, expense: 0, net: 0, count: 0 };
+    if (entry.type === "income") {
+      current.income += entry.amount;
+      current.net += entry.amount;
+    } else {
+      current.expense += entry.amount;
+      current.net -= entry.amount;
+    }
+    current.count += entryQuantity(entry);
     totals.set(label, current);
   }
 
@@ -1814,17 +2195,35 @@ function renderMapBars(entries) {
   }
 
   const rows = [...totals.entries()]
-    .map(([label, value]) => ({ label, amount: value.amount, count: value.count }))
-    .sort((a, b) => b.count - a.count || Math.abs(b.amount) - Math.abs(a.amount));
-  const maxAmount = Math.max(...rows.map((row) => Math.abs(row.amount)), 1);
+    .map(([label, value]) => ({ label, income: value.income, expense: value.expense, net: value.net, count: value.count }))
+    .sort(compareTradeSummaryRows);
+  const maxAmount = Math.max(...rows.map((row) => Math.abs(row.net)), 1);
 
-  for (const { label, amount, count } of rows) {
+  const header = document.createElement("div");
+  header.className = "bar-row bar-row-head";
+  header.innerHTML = `
+    ${tradeSummarySortHeader("label", "アイテム/項目")}
+    ${tradeSummarySortHeader("count", "数量")}
+    ${tradeSummarySortHeader("income", "収入")}
+    ${tradeSummarySortHeader("expense", "支出")}
+    ${tradeSummarySortHeader("net", "収支")}
+    <span>収支バー</span>
+  `;
+  elements.categoryBars.append(header);
+
+  for (const { label, income, expense, net, count } of rows) {
     const row = document.createElement("div");
     row.className = "bar-row";
     row.innerHTML = `
-      <span>${escapeHTML(label)} (${count})</span>
-      <div class="bar-track"><div class="bar-fill ${amount < 0 ? "negative" : ""}" style="width: ${(Math.abs(amount) / maxAmount) * 100}%"></div></div>
-      <span class="${amount < 0 ? "expense-text" : "income-text"}">${formatSignedYen(amount)}</span>
+      <span>${escapeHTML(label)}</span>
+      <span class="bar-count">${formatQuantity(count)}</span>
+      <span class="bar-amount income-text">${yen.format(income)}</span>
+      <span class="bar-amount expense-text">${yen.format(expense)}</span>
+      <span class="bar-amount ${net < 0 ? "expense-text" : "income-text"}">${formatSignedYen(net)}</span>
+      <div class="bar-track net-bar-track" aria-label="収支バー">
+        <div class="bar-zero-line"></div>
+        <div class="bar-fill ${net < 0 ? "negative" : ""}" style="width: ${(Math.abs(net) / maxAmount) * 50}%; ${net < 0 ? "right: 50%;" : "left: 50%;"}"></div>
+      </div>
     `;
     elements.categoryBars.append(row);
   }
@@ -1832,6 +2231,62 @@ function renderMapBars(entries) {
   elements.toggleBars.classList.toggle("hidden", rows.length <= 3);
   if (rows.length <= 3) state.barsExpanded = false;
   updateBarsExpandedState();
+}
+
+function updateTradeSummarySort(key) {
+  if (!key) return;
+  if (state.tradeSummarySort.key === key) {
+    state.tradeSummarySort.direction = state.tradeSummarySort.direction === "asc" ? "desc" : "asc";
+  } else {
+    state.tradeSummarySort = { key, direction: key === "label" ? "asc" : "desc" };
+  }
+  const periodEntries = entriesForCurrentPeriod();
+  renderMapBars(periodEntries);
+}
+
+function tradeSummarySortHeader(key, label) {
+  const active = state.tradeSummarySort.key === key;
+  const mark = active ? (state.tradeSummarySort.direction === "asc" ? " ▲" : " ▼") : "";
+  return `<button class="bar-sort-button ${active ? "active" : ""}" type="button" data-sort="${key}">${escapeHTML(label)}${mark}</button>`;
+}
+
+function compareTradeSummaryRows(a, b) {
+  const direction = state.tradeSummarySort.direction === "asc" ? 1 : -1;
+  const aValue = tradeSummarySortValue(a, state.tradeSummarySort.key);
+  const bValue = tradeSummarySortValue(b, state.tradeSummarySort.key);
+  let result = 0;
+
+  if (typeof aValue === "number" && typeof bValue === "number") {
+    result = aValue - bValue;
+  } else {
+    result = String(aValue).localeCompare(String(bValue), "ja", { numeric: true, sensitivity: "base" });
+  }
+
+  if (result === 0) {
+    if (state.tradeSummarySort.key === "count") {
+      result = a.net - b.net;
+      if (result !== 0) return result * direction;
+    }
+    result = b.count - a.count || Math.abs(b.net) - Math.abs(a.net) || a.label.localeCompare(b.label, "ja", { numeric: true, sensitivity: "base" });
+  }
+  return result * direction;
+}
+
+function tradeSummarySortValue(row, key) {
+  switch (key) {
+    case "label":
+      return row.label || "";
+    case "count":
+      return row.count;
+    case "income":
+      return row.income;
+    case "expense":
+      return row.expense;
+    case "net":
+      return row.net;
+    default:
+      return row.count;
+  }
 }
 
 function updateBarsExpandedState() {
@@ -2003,7 +2458,7 @@ function renderSummaryDetail() {
   grid.className = "breakdown-grid";
   grid.append(
     createBreakdownPanel("タグ別", aggregateByTag(entries), "タグ付きの収支データはありません"),
-    createBreakdownPanel("アイテム/項目別", aggregateByItem(entries), "アイテム/項目の収支"),
+    createBreakdownPanel("アイテム/項目別", aggregateByItem(entries), "アイテム/項目の収支", "数量"),
   );
   elements.summaryDetail.append(grid);
 }
@@ -2164,16 +2619,16 @@ function aggregateByTag(entries) {
     const signedAmount = entry.type === "income" ? entry.amount : -entry.amount;
     const tags = normalizeTags(entry.tags);
     if (tags.length === 0) {
-      totals.set("タグ未設定", (totals.get("タグ未設定") || 0) + signedAmount);
+      addBreakdownTotal(totals, "タグ未設定", signedAmount);
       continue;
     }
     for (const tag of tags) {
-      totals.set(tag, (totals.get(tag) || 0) + signedAmount);
+      addBreakdownTotal(totals, tag, signedAmount);
     }
   }
   return [...totals.entries()]
-    .map(([label, amount]) => ({ label, amount }))
-    .sort((a, b) => Math.abs(b.amount) - Math.abs(a.amount));
+    .map(([label, value]) => ({ label, amount: value.amount, count: value.count }))
+    .sort(compareBreakdownRows);
 }
 
 function aggregateByItem(entries) {
@@ -2181,14 +2636,73 @@ function aggregateByItem(entries) {
   for (const entry of entries) {
     const label = entry.item || "未設定項目";
     const signedAmount = entry.type === "income" ? entry.amount : -entry.amount;
-    totals.set(label, (totals.get(label) || 0) + signedAmount);
+    addBreakdownTotal(totals, label, signedAmount, entryQuantity(entry));
   }
   return [...totals.entries()]
-    .map(([label, amount]) => ({ label, amount }))
-    .sort((a, b) => Math.abs(b.amount) - Math.abs(a.amount));
+    .map(([label, value]) => ({ label, amount: value.amount, count: value.count }))
+    .sort(compareBreakdownRows);
 }
 
-function createBreakdownPanel(title, rows, emptyText) {
+function addBreakdownTotal(totals, label, amount, count = 1) {
+  const current = totals.get(label) || { amount: 0, count: 0 };
+  current.amount += amount;
+  current.count += count;
+  totals.set(label, current);
+}
+
+function entryQuantity(entry) {
+  const quantity = Number(entry?.quantity);
+  return Number.isFinite(quantity) && quantity > 0 ? quantity : 1;
+}
+
+function updateBreakdownSort(key) {
+  if (!key) return;
+  if (state.breakdownSort.key === key) {
+    state.breakdownSort.direction = state.breakdownSort.direction === "asc" ? "desc" : "asc";
+  } else {
+    state.breakdownSort = { key, direction: key === "label" ? "asc" : "desc" };
+  }
+  renderSummaryDetail();
+}
+
+function breakdownSortHeader(key, label) {
+  const active = state.breakdownSort.key === key;
+  const mark = active ? (state.breakdownSort.direction === "asc" ? " ▲" : " ▼") : "";
+  return `<button class="breakdown-sort-button ${active ? "active" : ""}" type="button" data-sort="${key}">${escapeHTML(label)}${mark}</button>`;
+}
+
+function compareBreakdownRows(a, b) {
+  const direction = state.breakdownSort.direction === "asc" ? 1 : -1;
+  const aValue = breakdownSortValue(a, state.breakdownSort.key);
+  const bValue = breakdownSortValue(b, state.breakdownSort.key);
+  let result = 0;
+
+  if (typeof aValue === "number" && typeof bValue === "number") {
+    result = aValue - bValue;
+  } else {
+    result = String(aValue).localeCompare(String(bValue), "ja", { numeric: true, sensitivity: "base" });
+  }
+
+  if (result === 0) {
+    result = b.amount - a.amount || b.count - a.count || a.label.localeCompare(b.label, "ja", { numeric: true, sensitivity: "base" });
+  }
+  return result * direction;
+}
+
+function breakdownSortValue(row, key) {
+  switch (key) {
+    case "label":
+      return row.label || "";
+    case "count":
+      return row.count;
+    case "amount":
+      return row.amount;
+    default:
+      return row.amount;
+  }
+}
+
+function createBreakdownPanel(title, rows, emptyText, countLabel = "件数") {
   const panel = document.createElement("section");
   panel.className = "breakdown-panel";
 
@@ -2205,15 +2719,27 @@ function createBreakdownPanel(title, rows, emptyText) {
   }
 
   const max = Math.max(...rows.map((row) => Math.abs(row.amount)), 1);
+  const header = document.createElement("div");
+  header.className = "breakdown-row breakdown-row-head";
+  header.innerHTML = `
+    ${breakdownSortHeader("label", title)}
+    ${breakdownSortHeader("count", countLabel)}
+    ${breakdownSortHeader("amount", "収支")}
+    <span>収支バー</span>
+  `;
+  panel.append(header);
+
   for (const row of rows) {
     const item = document.createElement("div");
     item.className = "breakdown-row";
     item.innerHTML = `
       <span>${escapeHTML(row.label)}</span>
-      <div class="breakdown-track">
-        <div class="breakdown-fill ${row.amount < 0 ? "negative" : ""}" style="width: ${(Math.abs(row.amount) / max) * 100}%"></div>
-      </div>
+      <span class="breakdown-count">${formatQuantity(row.count)}</span>
       <strong class="${row.amount < 0 ? "expense-text" : "income-text"}">${formatSignedYen(row.amount)}</strong>
+      <div class="breakdown-track net-breakdown-track">
+        <div class="breakdown-zero-line"></div>
+        <div class="breakdown-fill ${row.amount < 0 ? "negative" : ""}" style="width: ${(Math.abs(row.amount) / max) * 50}%; ${row.amount < 0 ? "right: 50%;" : "left: 50%;"}"></div>
+      </div>
     `;
     panel.append(item);
   }
@@ -2261,12 +2787,20 @@ function updateEntryMapOptions(selectedMap = "") {
   }
 
   elements.entryMap.value = "";
+  elements.entryMap.dataset.previousValue = elements.entryMap.value;
 }
 
-function updateEntryItemOptions() {
-  const linkedItems = elements.entryMap.value ? state.links[elements.entryMap.value] || [] : state.items.map((item) => item.name);
+function updateEntryItemOptions(selectedItem = "") {
+  const linkedItems = elements.entryMap.value
+    ? [...(state.links[elements.entryMap.value] || [])]
+    : state.items.map((item) => item.name);
+  if (!elements.entryMap.value && selectedItem && !linkedItems.includes(selectedItem)) linkedItems.push(selectedItem);
   setSelectOptionsWithBlank(elements.entryItemSelect, linkedItems, "アイテム/項目を選択");
   setSelectOptionsWithBlank(elements.expenseNameSelect, linkedItems, "アイテム/項目を選択");
+  if (selectedItem && linkedItems.includes(selectedItem)) {
+    elements.entryItemSelect.value = selectedItem;
+    elements.expenseNameSelect.value = selectedItem;
+  }
 }
 
 function updateLinkOptions(selectedMap = "") {
@@ -2352,6 +2886,7 @@ function registeredTags() {
     ...new Set([
       ...state.entries.flatMap((entry) => normalizeTags(entry.tags)),
       ...state.plannedPurchases.flatMap((planned) => normalizeTags(planned.tags)),
+      ...state.memos.flatMap((memo) => normalizeTags(memo.tags || (memo.tag ? [memo.tag] : []))),
     ]),
   ].sort((a, b) => a.localeCompare(b, "ja"));
 }
@@ -2517,8 +3052,18 @@ function setTagValues(input, chipList, tags) {
 }
 
 function renderTagChips(input, chipList) {
+  const tags = getTagValues(input);
+  if (input === elements.memoTag) {
+    input.placeholder = tags.length > 0 ? "" : "#タグ";
+  }
+  if (input === elements.memoSearchTag) {
+    input.placeholder = tags.length > 0 ? "" : "#タグ検索";
+  }
+  if (input === elements.memoEditTag) {
+    input.placeholder = tags.length > 0 ? "" : "#タグ";
+  }
   chipList.replaceChildren(
-    ...getTagValues(input).map((tag) => {
+    ...tags.map((tag) => {
       const chip = document.createElement("button");
       chip.type = "button";
       chip.className = "tag-chip";
@@ -2581,6 +3126,119 @@ function currentEntryItemName() {
     return currentType() === "income" ? elements.entryItemSelect.value : elements.expenseNameSelect.value;
   }
   return currentType() === "income" ? elements.entryItem.value.trim() : elements.expenseName.value.trim();
+}
+
+function anyEntryItemName() {
+  if (currentType() === "income") {
+    return elements.entryGroupDetails.open
+      ? elements.entryItemSelect.value || elements.entryItem.value.trim()
+      : elements.entryItem.value.trim() || elements.entryItemSelect.value;
+  }
+  return elements.entryGroupDetails.open
+    ? elements.expenseNameSelect.value || elements.expenseName.value.trim()
+    : elements.expenseName.value.trim() || elements.expenseNameSelect.value;
+}
+
+function anyEditItemName() {
+  if (editType() === "income") {
+    return elements.editGroupDetails.open
+      ? elements.editItemSelect.value || elements.editItem.value.trim()
+      : elements.editItem.value.trim() || elements.editItemSelect.value;
+  }
+  return elements.editGroupDetails.open
+    ? elements.editExpenseNameSelect.value || elements.editExpenseName.value.trim()
+    : elements.editExpenseName.value.trim() || elements.editExpenseNameSelect.value;
+}
+
+function directEntryItemName() {
+  return currentType() === "income" ? elements.entryItem.value.trim() : elements.expenseName.value.trim();
+}
+
+function directEditItemName() {
+  return editType() === "income" ? elements.editItem.value.trim() : elements.editExpenseName.value.trim();
+}
+
+function reconcileEntryGroupOnOpen() {
+  return reconcileGroupOnOpen(elements.entryMap, directEntryItemName());
+}
+
+function reconcileEditGroupOnOpen() {
+  return reconcileGroupOnOpen(elements.editMap, directEditItemName());
+}
+
+function reconcileGroupOnOpen(mapSelect, directItemName) {
+  const map = mapSelect.value;
+  if (!map || !directItemName) return directItemName || "";
+  if ((state.links[map] || []).includes(directItemName)) return directItemName;
+  mapSelect.value = "";
+  mapSelect.dataset.previousValue = "";
+  return directItemName;
+}
+
+function syncEntryDirectItemName(itemName) {
+  if (!itemName) return;
+  if (currentType() === "income") {
+    elements.entryItem.value = itemName;
+    return;
+  }
+  elements.expenseName.value = itemName;
+}
+
+function syncEditDirectItemName(itemName) {
+  if (!itemName) return;
+  if (editType() === "income") {
+    elements.editItem.value = itemName;
+    return;
+  }
+  elements.editExpenseName.value = itemName;
+}
+
+function resolvedEntryMap(itemName) {
+  return resolvedMapForItem(elements.entryMap, elements.entryGroupDetails.open, itemName);
+}
+
+function resolvedEditMap(itemName) {
+  return resolvedMapForItem(elements.editMap, elements.editGroupDetails.open, itemName);
+}
+
+function resolvedMapForItem(mapSelect, isGroupOpen, itemName) {
+  const map = mapSelect.value;
+  if (!map) return "";
+  if (isGroupOpen) return map;
+  return (state.links[map] || []).includes(itemName) ? map : "";
+}
+
+function confirmClearItemOutsideGroup(mapSelect, itemName, clearItemFields) {
+  const map = mapSelect.value;
+  const linkedItems = map ? state.links[map] || [] : [];
+  if (!map || !itemName || linkedItems.includes(itemName)) {
+    mapSelect.dataset.previousValue = map;
+    return true;
+  }
+
+  const confirmed = window.confirm(`入力されているアイテム/項目「${itemName}」は、選択したグループ「${map}」の構成に存在しないためクリアされます。\nよろしいですか？`);
+  if (!confirmed) {
+    mapSelect.value = mapSelect.dataset.previousValue || "";
+    return false;
+  }
+
+  clearItemFields();
+  mapSelect.dataset.previousValue = map;
+  return true;
+}
+
+function clearEntryItemFields() {
+  elements.entryItem.value = "";
+  elements.entryItemSelect.value = "";
+  elements.expenseName.value = "";
+  elements.expenseNameSelect.value = "";
+}
+
+function clearEditItemFields() {
+  elements.editItem.value = "";
+  elements.editItemSelect.value = "";
+  elements.editExpenseName.value = "";
+  elements.editExpenseNameSelect.value = "";
 }
 
 function addSettlementEntryRow(target = elements.settlementRows, row = {}) {
@@ -3193,7 +3851,7 @@ function saveEditedEntry() {
   entry.date = elements.editDate.value;
   entry.time = elements.editTime.value;
   entry.amount = parseAmount(elements.editAmount.value);
-  entry.map = elements.editGroupDetails.open ? elements.editMap.value : "";
+  entry.map = resolvedEditMap(itemName);
   entry.item = itemName;
   entry.quantity = parseQuantityInput(elements.editQuantity.value) || 1;
   entry.unitPrice = editUnitPrice();
@@ -3223,11 +3881,14 @@ function updateEditMapOptions(selectedMap = "") {
     elements.editMap.append(option);
   }
   if (selectedMap && state.maps.includes(selectedMap)) elements.editMap.value = selectedMap;
+  elements.editMap.dataset.previousValue = elements.editMap.value;
 }
 
 function updateEditItemOptions(selectedItem = "") {
-  const linkedItems = elements.editMap.value ? state.links[elements.editMap.value] || [] : state.items.map((item) => item.name);
-  if (selectedItem && !linkedItems.includes(selectedItem)) linkedItems.push(selectedItem);
+  const linkedItems = elements.editMap.value
+    ? [...(state.links[elements.editMap.value] || [])]
+    : state.items.map((item) => item.name);
+  if (!elements.editMap.value && selectedItem && !linkedItems.includes(selectedItem)) linkedItems.push(selectedItem);
   setSelectOptionsWithBlank(elements.editItemSelect, linkedItems, "アイテム/項目を選択");
   setSelectOptionsWithBlank(elements.editExpenseNameSelect, linkedItems, "アイテム/項目を選択");
   if (selectedItem) {
@@ -3443,6 +4104,12 @@ function showTab(tab) {
     const isSettingsGroup = tab === "settings" && ["maps", "items", "links", "settings"].includes(name);
     panel.classList.toggle("active", name === tab || isSettingsGroup);
   });
+  if (tab === "settings" && ![...elements.settingsAnchors].some((button) => button.classList.contains("active"))) {
+    elements.settingsAnchors[0]?.classList.add("active");
+  }
+  if (tab !== "settings") {
+    elements.settingsAnchors.forEach((button) => button.classList.remove("active"));
+  }
 
   if (tab !== "entry") refreshConfigurationViews();
   if (shouldResetScroll) window.scrollTo({ top: 0, left: 0, behavior: "auto" });
@@ -3451,6 +4118,9 @@ function showTab(tab) {
 function scrollToSettingsBlock(targetId) {
   const target = document.querySelector(`#${targetId}`);
   if (!target) return;
+  elements.settingsAnchors.forEach((button) => {
+    button.classList.toggle("active", button.dataset.settingsTarget === targetId);
+  });
   const stickyHeight = elements.stickyTop.getBoundingClientRect().height;
   const stickyOffset = parseFloat(getComputedStyle(document.documentElement).getPropertyValue("--sticky-top-offset")) || 0;
   const anchorGap = parseFloat(getComputedStyle(document.documentElement).getPropertyValue("--settings-anchor-gap")) || 0;
@@ -3910,6 +4580,43 @@ function loadPlannedPurchases() {
   }
 }
 
+function loadMemos() {
+  const stored = localStorage.getItem(MEMO_STORAGE_KEY);
+  if (!stored) return [];
+
+  try {
+    return normalizeMemos(JSON.parse(stored));
+  } catch {
+    return [];
+  }
+}
+
+function normalizeMemos(memos) {
+  if (!Array.isArray(memos)) return [];
+  return memos
+    .filter((memo) => memo && (memo.title || memo.body))
+    .map((memo) => {
+      const legacyTagMap = {
+        todo: "#ToDo",
+        event: "#起きた事",
+        thought: "#思った事",
+        note: "#メモ",
+      };
+      return {
+        id: String(memo.id || crypto.randomUUID()),
+        tag: "",
+        tags: normalizeMemoTags({ ...memo, tag: memo.tag || legacyTagMap[memo.type] || "" }),
+        title: String(memo.title || ""),
+        body: String(memo.body || ""),
+        done: Boolean(memo.done),
+        color: ["blue", "green", "amber", "rose", "slate"].includes(memo.color) ? memo.color : "blue",
+        createdAt: memo.createdAt || new Date().toISOString(),
+        updatedAt: memo.updatedAt || memo.createdAt || new Date().toISOString(),
+      };
+    })
+    .sort((a, b) => new Date(b.updatedAt) - new Date(a.updatedAt));
+}
+
 function extractLegacyData() {
   const stored = localStorage.getItem(LEGACY_MAP_STORAGE_KEY);
   if (!stored) return { maps: [], items: [], links: {} };
@@ -4133,6 +4840,10 @@ function saveLinks() {
 
 function savePlannedPurchases() {
   localStorage.setItem(PLANNED_STORAGE_KEY, JSON.stringify(state.plannedPurchases));
+}
+
+function saveMemos() {
+  localStorage.setItem(MEMO_STORAGE_KEY, JSON.stringify(state.memos));
 }
 
 function escapeHTML(value) {
