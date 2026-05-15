@@ -2864,12 +2864,16 @@ function parseTags(value) {
   return normalizeTags(String(value || "").split(/[\s,、]+/));
 }
 
+function normalizeTagPrefix(tag) {
+  return String(tag || "").trim().replace(/^＃/, "#");
+}
+
 function normalizeTags(tags) {
   const source = Array.isArray(tags) ? tags : String(tags || "").split(/[\s,、]+/);
   return [
     ...new Set(
       source
-        .map((tag) => String(tag || "").trim())
+        .map((tag) => normalizeTagPrefix(tag))
         .filter(Boolean)
         .filter((tag) => tag.startsWith("#"))
         .filter((tag) => tag.length > 1),
@@ -3014,8 +3018,8 @@ function renderTagSuggestions(input, target, chipList) {
 }
 
 function currentTagToken(value) {
-  const match = String(value || "").match(/#\S*$/);
-  return match ? match[0] : "";
+  const match = String(value || "").match(/[＃#]\S*$/);
+  return match ? normalizeTagPrefix(match[0]) : "";
 }
 
 function commitCompleteTagTokens(input, chipList) {
