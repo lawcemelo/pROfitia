@@ -1563,6 +1563,39 @@ label {
   text-align: right;
 }
 
+.people-stepper {
+  display: inline-grid;
+  grid-template-columns: 26px 46px 26px;
+  gap: 4px;
+  align-items: center;
+}
+
+.people-stepper input {
+  width: 46px;
+  min-width: 46px;
+}
+
+.people-step-button {
+  display: grid;
+  place-items: center;
+  width: 26px;
+  height: 30px;
+  border: 1px solid color-mix(in srgb, var(--green) 30%, var(--line));
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--green) 8%, var(--panel-strong));
+  color: var(--green);
+  cursor: pointer;
+  font-size: 0.86rem;
+  font-weight: 950;
+  line-height: 1;
+  user-select: none;
+}
+
+.people-step-button:hover {
+  background: var(--green);
+  color: white;
+}
+
 .settlement-entry-subhead {
   display: flex;
   align-items: end;
@@ -2124,8 +2157,12 @@ label {
 }
 
 .planned-entry-grid {
-  grid-template-columns: minmax(150px, 220px) minmax(240px, 360px) minmax(120px, 170px) minmax(104px, 126px);
+  grid-template-columns: minmax(150px, 220px) minmax(260px, 390px) minmax(62px, 76px) minmax(120px, 160px) minmax(104px, 126px);
   font-size: 0.84rem;
+}
+
+#plannedQuantityInput {
+  text-align: right;
 }
 
 .planned-item-wide {
@@ -3015,10 +3052,10 @@ label {
 
 .planned-row {
   display: grid;
-  grid-template-columns: 24px 56px minmax(140px, 1fr) 150px 150px 72px 72px 34px;
+  grid-template-columns: 40px 56px minmax(260px, 1fr) minmax(132px, 150px) minmax(160px, 190px) 72px 38px;
   gap: 10px;
   align-items: center;
-  min-height: 42px;
+  min-height: 54px;
   border: 1px solid var(--line);
   border-radius: 8px;
   background: var(--panel-strong);
@@ -3035,6 +3072,27 @@ label {
 .planned-row.drag-over {
   border-color: var(--blue);
   box-shadow: inset 0 0 0 2px color-mix(in srgb, var(--blue) 36%, transparent);
+}
+
+.planned-row-main {
+  display: grid;
+  gap: 3px;
+  min-width: 0;
+}
+
+.planned-row-main strong {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.planned-row-main small {
+  color: var(--muted);
+  font-size: 0.78rem;
+  font-weight: 800;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .planned-running-net {
@@ -3070,7 +3128,6 @@ label {
   transform: none;
 }
 
-.planned-row-head span:nth-child(3),
 .planned-row-head span:nth-child(4),
 .planned-row-head span:nth-child(5) {
   justify-self: end;
@@ -3079,8 +3136,7 @@ label {
 }
 
 .planned-row-head span:nth-child(6),
-.planned-row-head span:nth-child(7),
-.planned-row-head span:nth-child(8) {
+.planned-row-head span:nth-child(7) {
   justify-self: stretch;
   text-align: center;
 }
@@ -3091,7 +3147,8 @@ label {
   justify-self: start;
 }
 
-.planned-row > span:nth-child(4) {
+.planned-row > span:nth-child(4),
+.planned-row > span:nth-child(5) {
   justify-self: end;
   white-space: nowrap;
   font-variant-numeric: tabular-nums;
@@ -3100,7 +3157,9 @@ label {
 .drag-handle {
   display: grid;
   place-items: center;
-  height: 30px;
+  width: 100%;
+  min-width: 36px;
+  height: 38px;
   border-radius: 7px;
   color: var(--muted);
   cursor: grab;
@@ -3123,6 +3182,45 @@ label {
   cursor: pointer;
   font-size: 0.8rem;
   font-weight: 900;
+}
+
+.planned-edge-actions {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 3px;
+  justify-items: center;
+}
+
+.planned-edge-button {
+  min-width: 0;
+  width: 28px;
+  height: 23px;
+  border: 1px solid var(--line);
+  border-radius: 7px;
+  background: var(--panel-strong);
+  color: var(--muted);
+  cursor: pointer;
+  font-size: 0.74rem;
+  font-weight: 900;
+  line-height: 1;
+  user-select: none;
+}
+
+.planned-edge-button:hover {
+  border-color: var(--blue);
+  background: color-mix(in srgb, var(--blue) 10%, var(--panel-strong));
+  color: var(--blue);
+}
+
+.planned-edge-button:disabled {
+  cursor: default;
+  opacity: 0.38;
+}
+
+.planned-edge-button:disabled:hover {
+  border-color: var(--line);
+  background: var(--panel-strong);
+  color: var(--muted);
 }
 
 .planned-row-actions {
@@ -3911,7 +4009,7 @@ label {
 
 .planned-edit-dialog {
   --planned-edit-accent: var(--blue);
-  width: min(520px, calc(100vw - 36px));
+  width: min(650px, calc(100vw - 36px));
   overflow-x: hidden;
 }
 
@@ -3992,7 +4090,7 @@ label {
 
 .planned-edit-input-row {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(136px, 0.42fr);
+  grid-template-columns: minmax(0, 1fr) minmax(54px, 66px) minmax(132px, 0.38fr) minmax(144px, 0.4fr);
   gap: 10px;
   align-items: end;
   min-width: 0;
@@ -4001,6 +4099,11 @@ label {
 
 .planned-edit-input-row label {
   min-width: 0;
+}
+
+#plannedEditQuantityInput,
+#plannedEditTotalAmountInput {
+  text-align: right;
 }
 
 .calc-dialog {

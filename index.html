@@ -144,7 +144,7 @@
               <input class="entry-time-input hidden" id="timeInput" type="time" />
             </div>
             <details class="entry-group-details" id="entryGroupDetails">
-              <summary>グループを選択</summary>
+              <summary>グループから選択する場合</summary>
               <label>
                 グループ
                 <select id="entryMapInput"></select>
@@ -232,7 +232,11 @@
               <div class="settlement-entry-total settlement-grand-total">
                 <label class="settlement-people-field">
                   人数
-                  <input id="settlementPeopleCountInput" type="text" inputmode="text" value="1" />
+                  <span class="people-stepper">
+                    <button class="people-step-button" id="settlementPeopleDownButton" type="button" aria-label="人数を減らす">−</button>
+                    <input id="settlementPeopleCountInput" type="text" inputmode="text" value="1" />
+                    <button class="people-step-button" id="settlementPeopleUpButton" type="button" aria-label="人数を増やす">＋</button>
+                  </span>
                 </label>
               </div>
               <div class="buyer-distribution-list" id="buyerDistributionList"></div>
@@ -350,7 +354,8 @@
               <div class="tag-suggestion-list hidden" id="plannedTagSuggestions"></div>
             </label>
             <input id="plannedItemInput" type="text" inputmode="text" maxlength="32" placeholder="アイテム名" list="itemHistoryOptions" />
-            <input id="plannedAmountInput" type="text" inputmode="text" placeholder="予定額 例: 1K / 100M" />
+            <input id="plannedQuantityInput" type="text" inputmode="decimal" placeholder="数量" value="1" />
+            <input id="plannedAmountInput" type="text" inputmode="text" placeholder="予定単価 例: 1K / 100M" />
             <button class="secondary-button wide-add" id="addPlannedButton" type="button">予定追加</button>
           </div>
           </div>
@@ -564,7 +569,7 @@
       <footer class="app-footer">
         <span>© 2026 lawcemelo. All rights reserved.</span>
         <span>
-          pROfitia 収支管理支援アプリ / Version 1.0.1
+          pROfitia 収支管理支援アプリ / Version 1.0.2
           <a href="guide.html" target="_blank" rel="noopener noreferrer">説明</a>
         </span>
       </footer>
@@ -613,7 +618,7 @@
           </label>
         </div>
         <details class="entry-group-details edit-group-details" id="editGroupDetails">
-          <summary>&#12464;&#12523;&#12540;&#12503;&#12434;&#36984;&#25246;</summary>
+          <summary>グループから選択する場合</summary>
           <label>
             &#12464;&#12523;&#12540;&#12503;
             <select id="editMapInput"></select>
@@ -824,11 +829,22 @@
             <input id="plannedEditItemInput" type="text" inputmode="text" maxlength="32" list="itemHistoryOptions" required />
           </label>
           <label>
-            予定額
+            数量
+            <input id="plannedEditQuantityInput" type="text" inputmode="decimal" required />
+          </label>
+          <label>
+            予定単価
             <input id="plannedEditAmountInput" type="text" inputmode="text" placeholder="例: 1K / 100M" required />
           </label>
+          <label>
+            予定金額
+            <input id="plannedEditTotalAmountInput" type="text" readonly tabindex="-1" />
+          </label>
         </div>
-        <button class="primary-button" type="submit">保存</button>
+        <div class="modal-actions">
+          <button class="danger-button" id="deletePlannedEditButton" type="button">削除</button>
+          <button class="primary-button" type="submit">保存</button>
+        </div>
       </form>
     </div>
 

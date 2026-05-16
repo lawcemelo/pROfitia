@@ -259,6 +259,8 @@ const elements = {
   amount: document.querySelector("#amountInput"),
   settlementFields: document.querySelector("#settlementFields"),
   settlementPeopleCount: document.querySelector("#settlementPeopleCountInput"),
+  settlementPeopleDown: document.querySelector("#settlementPeopleDownButton"),
+  settlementPeopleUp: document.querySelector("#settlementPeopleUpButton"),
   settlementRows: document.querySelector("#settlementRows"),
   settlementTotal: document.querySelector("#settlementTotalAmount"),
   addSettlementRow: document.querySelector("#addSettlementRowButton"),
@@ -333,6 +335,7 @@ const elements = {
   plannedTags: document.querySelector("#plannedTagsInput"),
   plannedTagSuggestions: document.querySelector("#plannedTagSuggestions"),
   plannedItem: document.querySelector("#plannedItemInput"),
+  plannedQuantity: document.querySelector("#plannedQuantityInput"),
   plannedAmount: document.querySelector("#plannedAmountInput"),
   plannedCashButton: document.querySelector("#plannedCashButton"),
   plannedCashDisplay: document.querySelector("#plannedCashDisplay"),
@@ -440,7 +443,10 @@ const elements = {
   plannedEditTagSuggestions: document.querySelector("#plannedEditTagSuggestions"),
   plannedEditFrequentTagList: document.querySelector("#plannedEditFrequentTagList"),
   plannedEditItem: document.querySelector("#plannedEditItemInput"),
+  plannedEditQuantity: document.querySelector("#plannedEditQuantityInput"),
   plannedEditAmount: document.querySelector("#plannedEditAmountInput"),
+  plannedEditTotalAmount: document.querySelector("#plannedEditTotalAmountInput"),
+  deletePlannedEdit: document.querySelector("#deletePlannedEditButton"),
   exportData: document.querySelector("#exportDataButton"),
   importData: document.querySelector("#importDataButton"),
   importDataInput: document.querySelector("#importDataInput"),
@@ -473,6 +479,7 @@ function init() {
 }
 
 function bindEvents() {
+  setupItemHistoryInputs();
   setupMoneyUnitShortcuts();
   setupTagInput(elements.tags, elements.tagChipInput, elements.tagChipList, elements.tagSuggestions);
   setupTagInput(elements.editTags, elements.editTagChipInput, elements.editTagChipList, elements.editTagSuggestions);
@@ -564,14 +571,14 @@ function bindEvents() {
   });
 
   document.addEventListener("focusin", (event) => {
-    if (event.target?.getAttribute?.("list") === "itemHistoryOptions") {
-      updateItemHistoryOptions(event.target.value);
+    if (isItemHistoryInput(event.target)) {
+      updateItemHistoryInputList(event.target);
     }
   });
 
   document.addEventListener("input", (event) => {
-    if (event.target?.getAttribute?.("list") === "itemHistoryOptions") {
-      updateItemHistoryOptions(event.target.value);
+    if (isItemHistoryInput(event.target)) {
+      updateItemHistoryInputList(event.target);
     }
   });
 
@@ -671,6 +678,8 @@ function bindEvents() {
     }
   });
 
+  elements.settlementPeopleDown.addEventListener("click", () => stepSettlementPeople(-1));
+  elements.settlementPeopleUp.addEventListener("click", () => stepSettlementPeople(1));
   elements.addSettlementRow.addEventListener("click", () => addSettlementEntryRow(elements.settlementRows));
   elements.addPurchaseRow.addEventListener("click", () => addSettlementEntryRow(elements.purchaseRows));
   [elements.settlementRows, elements.purchaseRows].forEach((list) => list.addEventListener("click", (event) => {
@@ -820,6 +829,9 @@ function bindEvents() {
   elements.plannedAmount.addEventListener("input", (event) => {
     if (!isComposingInputEvent(event)) formatMoneyInput(elements.plannedAmount);
   });
+  elements.plannedQuantity.addEventListener("input", (event) => {
+    if (!isComposingInputEvent(event)) formatQuantityInput(elements.plannedQuantity);
+  });
   elements.plannedCashButton.addEventListener("click", registerPlannedCash);
   document.querySelectorAll('input[name="plannedType"]').forEach((input) => {
     input.addEventListener("change", updatePlannedMode);
@@ -831,29 +843,26 @@ function bindEvents() {
     if (normalizeMoneyShortcutInput(elements.plannedAmount)) return;
     addPlannedPurchase();
   });
+  elements.plannedQuantity.addEventListener("keydown", (event) => {
+    if (event.key !== "Enter") return;
+    event.preventDefault();
+    addPlannedPurchase();
+  });
   elements.plannedItem.addEventListener("keydown", (event) => {
     if (event.key !== "Enter") return;
     event.preventDefault();
     addPlannedPurchase();
   });
   elements.plannedList.addEventListener("click", (event) => {
-    const deleteButton = event.target.closest(".delete-link-button");
-    if (deleteButton) {
-      state.plannedPurchases = state.plannedPurchases.filter((planned) => planned.id !== deleteButton.dataset.id);
-      savePlannedPurchases();
-      renderPlannedPurchases();
-      return;
-    }
-
-    const moveButton = event.target.closest(".move-planned-button");
-    if (moveButton) {
-      movePlannedPurchase(moveButton.dataset.id, moveButton.dataset.direction);
-      return;
-    }
-
     const sendButton = event.target.closest(".send-planned-button");
     if (sendButton) {
       openPlannedEntryModal(sendButton.dataset.id);
+      return;
+    }
+
+    const edgeButton = event.target.closest(".planned-edge-button");
+    if (edgeButton) {
+      movePlannedPurchaseToEdge(edgeButton.dataset.id, edgeButton.dataset.edge);
       return;
     }
 
@@ -1048,11 +1057,17 @@ function bindEvents() {
   });
   elements.deleteMaster.addEventListener("click", deleteMasterEdit);
   elements.closePlannedEdit.addEventListener("click", closePlannedEditModal);
+  elements.deletePlannedEdit.addEventListener("click", deletePlannedEdit);
   elements.plannedEditModal.addEventListener("click", (event) => {
     if (event.target === elements.plannedEditModal) closePlannedEditModal();
   });
   elements.plannedEditAmount.addEventListener("input", (event) => {
     if (!isComposingInputEvent(event)) formatMoneyInput(elements.plannedEditAmount);
+    updatePlannedEditTotalAmount();
+  });
+  elements.plannedEditQuantity.addEventListener("input", (event) => {
+    if (!isComposingInputEvent(event)) formatQuantityInput(elements.plannedEditQuantity);
+    updatePlannedEditTotalAmount();
   });
   document.querySelectorAll('input[name="plannedEditType"]').forEach((input) => {
     input.addEventListener("change", updatePlannedEditMode);
@@ -1561,6 +1576,28 @@ function renderSearchTotals(results, shouldShow) {
   }
 }
 
+function plannedQuantity(planned) {
+  const quantity = Number(planned?.quantity);
+  return Number.isFinite(quantity) && quantity > 0 ? quantity : 1;
+}
+
+function plannedTotalAmount(planned) {
+  return Math.round(Number(planned?.amount || 0) * plannedQuantity(planned));
+}
+
+function applyPlannedTransferRemainder(planned, usedQuantity) {
+  if (!planned) {
+    state.plannedPurchases = state.plannedPurchases.filter((item) => item.id !== state.sendingPlannedId);
+    return;
+  }
+  const remaining = plannedQuantity(planned) - Number(usedQuantity || 0);
+  if (remaining > 0) {
+    planned.quantity = remaining;
+    return;
+  }
+  state.plannedPurchases = state.plannedPurchases.filter((item) => item.id !== planned.id);
+}
+
 function renderPlannedPurchases() {
   elements.plannedList.replaceChildren();
   const totals = plannedTotals();
@@ -1589,11 +1626,10 @@ function renderPlannedPurchases() {
   head.innerHTML = `
     <span></span>
     <span>種別</span>
-    <span>タグ / アイテム</span>
-    <span>予定額</span>
+    <span>アイテム / 内容</span>
+    <span>予定金額</span>
     <span>累計差引</span>
     <span>登録</span>
-    <span>並替</span>
     <span></span>
   `;
   elements.plannedList.append(head);
@@ -1604,21 +1640,26 @@ function renderPlannedPurchases() {
     row.className = "planned-row";
     row.dataset.id = planned.id;
     const isBuy = (planned.type || "buy") === "buy";
-    runningNet += isBuy ? -planned.amount : planned.amount;
+    const quantity = plannedQuantity(planned);
+    const totalAmount = plannedTotalAmount(planned);
+    runningNet += isBuy ? -totalAmount : totalAmount;
     const plannedTags = formatTags(planned.tags);
-    const plannedLabel = plannedTags ? `${plannedTags} / ${planned.item}` : planned.item;
+    const plannedMeta = [`単価 ${yen.format(planned.amount)}`, `数量 ${formatQuantity(quantity)}`];
+    if (plannedTags) plannedMeta.push(plannedTags);
     row.innerHTML = `
       <span class="drag-handle" draggable="true" data-id="${planned.id}" aria-label="並び替え">⋮⋮</span>
       <span class="${isBuy ? "expense-text" : "income-text"}">${isBuy ? "購入" : "売却"}</span>
-      <strong>${escapeHTML(plannedLabel)}</strong>
-      <span>${yen.format(planned.amount)}</span>
+      <div class="planned-row-main">
+        <strong>${escapeHTML(planned.item)}</strong>
+        <small>${escapeHTML(plannedMeta.join(" / "))}</small>
+      </div>
+      <span class="${isBuy ? "expense-text" : "income-text"}">${yen.format(totalAmount)}</span>
       <span class="planned-running-net ${runningNet < 0 ? "expense-text" : "income-text"}">${formatSignedYen(runningNet)}</span>
       <button class="send-planned-button" type="button" data-id="${planned.id}">明細へ</button>
-      <div class="planned-row-actions">
-        <button class="move-planned-button" type="button" data-id="${planned.id}" data-direction="up" ${index === 0 ? "disabled" : ""}>↑</button>
-        <button class="move-planned-button" type="button" data-id="${planned.id}" data-direction="down" ${index === state.plannedPurchases.length - 1 ? "disabled" : ""}>↓</button>
+      <div class="planned-edge-actions" aria-label="並び替え">
+        <button class="planned-edge-button" type="button" data-id="${planned.id}" data-edge="top" aria-label="先頭へ" title="先頭へ" ${index === 0 ? "disabled" : ""}>⇈</button>
+        <button class="planned-edge-button" type="button" data-id="${planned.id}" data-edge="bottom" aria-label="末尾へ" title="末尾へ" ${index === state.plannedPurchases.length - 1 ? "disabled" : ""}>⇊</button>
       </div>
-      <button class="delete-link-button" type="button" data-id="${planned.id}" aria-label="購入予定を削除">×</button>
     `;
     elements.plannedList.append(row);
   });
@@ -1634,7 +1675,7 @@ function openPlannedEntryModal(id) {
   setRadioValue(elements.editForm, "editType", isSell ? "income" : "expense");
   elements.editDate.value = todayISO();
   elements.editTime.value = currentTime();
-  elements.editQuantity.value = 1;
+  elements.editQuantity.value = formatQuantity(plannedQuantity(planned)) || "1";
   setTagValues(elements.editTags, elements.editTagChipList, planned.tags || []);
   elements.editGroupDetails.open = false;
   updateEditMapOptions("");
@@ -1673,19 +1714,22 @@ function openPlannedEntryModal(id) {
 function addPlannedPurchase() {
   const type = plannedType();
   const item = elements.plannedItem.value.trim();
+  const quantity = parseQuantityInput(elements.plannedQuantity.value) || 1;
   const amount = parseAmount(elements.plannedAmount.value);
-  if (!item) return;
+  if (!item || quantity <= 0 || !amount) return;
   commitTagInput(elements.plannedTags, elements.plannedTagChipList);
   state.plannedPurchases.push({
     id: crypto.randomUUID(),
     type,
     tags: getTagValues(elements.plannedTags),
     item,
+    quantity,
     amount,
     createdAt: Date.now(),
   });
   setTagValues(elements.plannedTags, elements.plannedTagChipList, []);
   elements.plannedItem.value = "";
+  elements.plannedQuantity.value = "1";
   elements.plannedAmount.value = "";
   savePlannedPurchases();
   renderPlannedPurchases();
@@ -1701,13 +1745,32 @@ function openPlannedEditModal(id) {
   updatePlannedEditMode();
   setTagValues(elements.plannedEditTags, elements.plannedEditTagChipList, planned.tags || []);
   elements.plannedEditItem.value = planned.item || "";
+  elements.plannedEditQuantity.value = formatQuantity(plannedQuantity(planned)) || "1";
   elements.plannedEditAmount.value = formatAmount(planned.amount);
+  updatePlannedEditTotalAmount();
   elements.plannedEditModal.classList.remove("hidden");
 }
 
 function closePlannedEditModal() {
   state.editingPlannedId = "";
   elements.plannedEditModal.classList.add("hidden");
+}
+
+function updatePlannedEditTotalAmount() {
+  if (!elements.plannedEditTotalAmount) return;
+  const quantity = parseQuantityInput(elements.plannedEditQuantity.value);
+  const unitPrice = parseAmount(elements.plannedEditAmount.value);
+  elements.plannedEditTotalAmount.value = quantity > 0 && unitPrice > 0 ? formatAmount(Math.round(quantity * unitPrice)) : "";
+}
+
+function deletePlannedEdit() {
+  if (!state.editingPlannedId) return;
+  if (!window.confirm("この予定を削除しますか？")) return;
+  state.plannedPurchases = state.plannedPurchases.filter((planned) => planned.id !== state.editingPlannedId);
+  savePlannedPurchases();
+  closePlannedEditModal();
+  renderPlannedPurchases();
+  updateTagOptions();
 }
 
 function plannedEditType() {
@@ -1726,13 +1789,15 @@ function savePlannedEdit() {
   if (!planned) return;
 
   const itemName = elements.plannedEditItem.value.trim();
+  const quantity = parseQuantityInput(elements.plannedEditQuantity.value) || 1;
   const amount = parseAmount(elements.plannedEditAmount.value);
-  if (!itemName || !amount) return;
+  if (!itemName || quantity <= 0 || !amount) return;
   commitTagInput(elements.plannedEditTags, elements.plannedEditTagChipList);
   planned.type = plannedEditType();
   planned.tags = getTagValues(elements.plannedEditTags);
   delete planned.map;
   planned.item = itemName;
+  planned.quantity = quantity;
   if (!amount) return;
   planned.amount = amount;
   savePlannedPurchases();
@@ -1744,7 +1809,7 @@ function savePlannedEdit() {
 function plannedTotals() {
   return state.plannedPurchases.reduce(
     (total, planned) => {
-      total[planned.type || "buy"] += planned.amount;
+      total[planned.type || "buy"] += plannedTotalAmount(planned);
       return total;
     },
     { buy: 0, sell: 0 },
@@ -1778,6 +1843,17 @@ function movePlannedPurchase(id, direction) {
   const target = direction === "up" ? index - 1 : index + 1;
   if (target < 0 || target >= state.plannedPurchases.length) return;
   [state.plannedPurchases[index], state.plannedPurchases[target]] = [state.plannedPurchases[target], state.plannedPurchases[index]];
+  savePlannedPurchases();
+  renderPlannedPurchases();
+}
+
+function movePlannedPurchaseToEdge(id, edge) {
+  const index = state.plannedPurchases.findIndex((planned) => planned.id === id);
+  if (index === -1) return;
+  const target = edge === "top" ? 0 : state.plannedPurchases.length - 1;
+  if (index === target) return;
+  const [planned] = state.plannedPurchases.splice(index, 1);
+  state.plannedPurchases.splice(target, 0, planned);
   savePlannedPurchases();
   renderPlannedPurchases();
 }
@@ -2092,7 +2168,7 @@ function exportAppData() {
   const url = URL.createObjectURL(blob);
   const anchor = document.createElement("a");
   anchor.href = url;
-  anchor.download = `ro-ledger-backup-${todayISO()}.json`;
+  anchor.download = `profitia-backup_${todayISO().replaceAll("-", "")}.json`;
   anchor.click();
   URL.revokeObjectURL(url);
 }
@@ -2112,7 +2188,12 @@ function importAppData(event) {
       state.items = Array.isArray(data.items) ? data.items : [];
       state.links = normalizeLinks(data.links || {});
       state.plannedPurchases = Array.isArray(data.plannedPurchases)
-        ? data.plannedPurchases.map((planned) => ({ ...planned, tags: normalizeTags(planned.tags), type: planned.type || "buy" }))
+        ? data.plannedPurchases.map((planned) => ({
+            ...planned,
+            tags: normalizeTags(planned.tags),
+            type: planned.type || "buy",
+            quantity: plannedQuantity(planned),
+          }))
         : [];
       state.memos = normalizeMemos(data.memos);
       state.plannedCash = Number(data.plannedCash || 0);
@@ -3110,6 +3191,29 @@ function itemHistoryNames() {
   ].sort((a, b) => a.localeCompare(b, "ja"));
 }
 
+function setupItemHistoryInputs() {
+  document.querySelectorAll('input[list="itemHistoryOptions"]').forEach((input) => {
+    input.dataset.itemHistoryInput = "true";
+    updateItemHistoryInputList(input);
+  });
+}
+
+function isItemHistoryInput(target) {
+  return target?.dataset?.itemHistoryInput === "true" || target?.getAttribute?.("list") === "itemHistoryOptions";
+}
+
+function updateItemHistoryInputList(input) {
+  input.dataset.itemHistoryInput = "true";
+  const query = String(input.value || "").trim();
+  if (!query) {
+    input.removeAttribute("list");
+    updateItemHistoryOptions("");
+    return;
+  }
+  input.setAttribute("list", "itemHistoryOptions");
+  updateItemHistoryOptions(query);
+}
+
 function updateItemHistoryOptions(query = "") {
   const keyword = String(query || "").trim().toLowerCase();
   if (!keyword) {
@@ -3117,7 +3221,10 @@ function updateItemHistoryOptions(query = "") {
     return;
   }
   elements.itemHistoryOptions.replaceChildren(
-    ...itemHistoryNames().filter((name) => name.toLowerCase().includes(keyword)).map((name) => {
+    ...itemHistoryNames().filter((name) => {
+      const normalizedName = name.toLowerCase();
+      return normalizedName.includes(keyword) && normalizedName !== keyword;
+    }).map((name) => {
       const option = document.createElement("option");
       option.value = name;
       return option;
@@ -3266,8 +3373,10 @@ function addSettlementEntryRow(target = elements.settlementRows, row = {}) {
       <input class="settlement-row-amount" type="text" inputmode="text" readonly tabindex="-1" />
       <button class="delete-button" type="button" aria-label="削除">×</button>
     `;
-  element.querySelector(".settlement-row-item").value = row.item || "";
-  element.querySelector(".settlement-row-item").setAttribute("list", "itemHistoryOptions");
+  const itemInput = element.querySelector(".settlement-row-item");
+  itemInput.value = row.item || "";
+  itemInput.dataset.itemHistoryInput = "true";
+  updateItemHistoryInputList(itemInput);
   const buyerInput = element.querySelector(".settlement-row-buyer");
   if (buyerInput) buyerInput.value = row.buyer || "";
   const priceInput = element.querySelector(".settlement-row-price");
@@ -3328,6 +3437,12 @@ function purchaseBuyTotal() {
 
 function settlementPeopleCount() {
   return Math.max(1, Math.floor(parseQuantityInput(elements.settlementPeopleCount.value) || 1));
+}
+
+function stepSettlementPeople(delta) {
+  const next = Math.max(1, Math.min(99, settlementPeopleCount() + delta));
+  elements.settlementPeopleCount.value = String(next);
+  updateSettlementTotal();
 }
 
 function currentDistributionPerPerson() {
@@ -3778,7 +3893,7 @@ function entrySubtitle(entry, mapName) {
   const parts = [];
   if (entry.map || entry.category) parts.push(mapName);
   if (entry.unitPrice) parts.push(`単価 ${yen.format(entry.unitPrice)}`);
-  if (entry.quantity) parts.push(`数量 ${entry.quantity}`);
+  if (entry.quantity) parts.push(`数量 ${formatQuantity(entry.quantity)}`);
   const tags = formatTags(entry.tags);
   if (tags) parts.push(tags);
   return parts.join(" / ");
@@ -3834,6 +3949,9 @@ function deleteEditedEntry() {
 function saveEditedEntry() {
   let entry = state.entries.find((candidate) => candidate.id === state.editingEntryId);
   const isPlannedTransfer = !entry && state.sendingPlannedId;
+  const plannedTransfer = isPlannedTransfer
+    ? state.plannedPurchases.find((planned) => planned.id === state.sendingPlannedId)
+    : null;
   if (!entry && !isPlannedTransfer) return;
 
   const type = editType();
@@ -3848,8 +3966,6 @@ function saveEditedEntry() {
   if (isPlannedTransfer) {
     entry = { id: crypto.randomUUID(), createdAt: Date.now() };
     state.entries.push(entry);
-    state.plannedPurchases = state.plannedPurchases.filter((planned) => planned.id !== state.sendingPlannedId);
-    savePlannedPurchases();
   }
   entry.type = type;
   entry.date = elements.editDate.value;
@@ -3863,6 +3979,8 @@ function saveEditedEntry() {
   delete entry.memo;
 
   if (isPlannedTransfer) {
+    applyPlannedTransferRemainder(plannedTransfer, entry.quantity);
+    savePlannedPurchases();
     state.periodStart = rangeKey(getRangeStart(entryDateTime(entry)));
     state.selectedSummaryKey = state.periodStart;
     updatePeriodLabel();
@@ -4577,6 +4695,7 @@ function loadPlannedPurchases() {
           ...item,
           tags: normalizeTags(item.tags),
           type: item.type || "buy",
+          quantity: plannedQuantity(item),
         }))
       : [];
   } catch {
@@ -4714,9 +4833,10 @@ function formatShortAmount(value) {
 }
 
 function formatQuantity(value) {
-  if (!Number.isFinite(value) || value <= 0) return "";
-  if (Number.isInteger(value)) return String(value);
-  return String(Number(value.toFixed(DISPLAY_QUANTITY_DECIMALS))).replace(/\.?0+$/, "");
+  const quantity = Number(value);
+  if (!Number.isFinite(quantity) || quantity <= 0) return "";
+  if (Number.isInteger(quantity)) return String(quantity);
+  return String(Number(quantity.toFixed(DISPLAY_QUANTITY_DECIMALS))).replace(/\.?0+$/, "");
 }
 
 function formatMoneyInput(input) {
@@ -4777,6 +4897,8 @@ function isQuantityInput(input) {
   return [
     "quantityInput",
     "editQuantityInput",
+    "plannedQuantityInput",
+    "plannedEditQuantityInput",
     "calcPriceQuantityInput",
     "settlementPeopleInput",
     "settlementPeopleCountInput",

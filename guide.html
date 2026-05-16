@@ -27,6 +27,7 @@
       </a>
       <nav class="guide-nav" aria-label="機能説明メニュー">
         <a href="#overview">概要</a>
+        <a href="#demo">操作イメージ</a>
         <a href="#features">機能</a>
         <a href="#workflow">使い方</a>
         <a href="#storage">保存とバックアップ</a>
@@ -53,6 +54,7 @@
             <li>清算時の人数割り、買取者別の配布額計算</li>
             <li>#タグによる分類、検索、収支確認</li>
             <li>売却予定、購入予定、可用資金による予定管理</li>
+            <li>予定単価と数量から予定金額を算出し、予定の一部だけを明細へ送信</li>
             <li>期間、区分、タグ、アイテム/項目名による明細検索</li>
             <li>検索結果が1種類のアイテム/項目の場合の単価推移グラフ</li>
             <li>週間・月間の収支推移、タグ別・アイテム/項目別の分布</li>
@@ -60,6 +62,47 @@
             <li>グループ、アイテム、グループ構成、色テーマ、バックアップ管理</li>
           </ul>
         </aside>
+      </section>
+
+      <section class="guide-section" id="demo">
+        <div class="section-heading">
+          <p class="eyebrow">APP WALKTHROUGH</p>
+          <h2>操作イメージ</h2>
+        </div>
+        <div class="demo-panel">
+          <div>
+            <p>
+              pROfitia の基本的な流れは、明細を追加し、予定管理でキャッシュフローを整理し、検索と収支確認で振り返る構成です。
+            </p>
+            <ol class="demo-steps">
+              <li><b>明細入力</b><span>収入、支出、清算のいずれかで取引を登録します。</span></li>
+              <li><b>予定管理</b><span>売却/購入予定を数量と予定単価で登録し、予定金額と累計差引を確認します。</span></li>
+              <li><b>検索</b><span>期間、区分、タグ、アイテム/項目名で過去明細を絞り込みます。</span></li>
+              <li><b>収支確認</b><span>週間または月間の推移、タグ別、アイテム/項目別の分布を確認します。</span></li>
+            </ol>
+          </div>
+          <div class="demo-app-frame" aria-label="アプリ画面だけを切り出した操作イメージ">
+            <div class="demo-app-header">
+              <img src="assets/profitia-title.png" alt="pROfitia" />
+              <div><span>週間</span><b>2026/5/12 12:00 - 5/19 11:59</b></div>
+            </div>
+            <div class="demo-tabs">
+              <b>明細入力</b><b>予定管理</b><b>検索</b><b>収支確認</b><b>メモ</b><b>設定</b>
+            </div>
+            <div class="demo-grid">
+              <section>
+                <small>ENTRY FORM</small>
+                <strong>明細を追加</strong>
+                <p>収入 / 支出 / 清算</p>
+              </section>
+              <section>
+                <small>CASH FLOW</small>
+                <strong>予定管理</strong>
+                <p>数量 × 予定単価 = 予定金額</p>
+              </section>
+            </div>
+          </div>
+        </div>
       </section>
 
       <section class="guide-section" id="features">
@@ -146,16 +189,20 @@
                 <div><span>売却予定</span><b>4.7G</b></div>
                 <div><span>購入予定</span><b class="red">3.1G</b></div>
               </div>
-              <div class="shot-plan-row"><i></i><b class="blue">売却</b><span>#投資 仮名称C</span><strong>4.38G</strong></div>
-              <div class="shot-plan-row"><i></i><b class="red">購入</b><span>#装備 仮名称D</span><strong>-2.1G</strong></div>
+              <div class="shot-plan-row"><i></i><b class="blue">売却</b><span>仮名称C / 単価 27.8M / 数量 2 / #投資</span><strong>55.6M</strong></div>
+              <div class="shot-plan-row"><i></i><b class="red">購入</b><span>仮名称D / 単価 2.1G / 数量 1 / #装備</span><strong>-2.1G</strong></div>
             </div>
             <ul>
               <li>売却/購入を切り替えて予定を登録できます。</li>
-              <li>予定にもタグを付けられます。</li>
-              <li>追加済み予定はドラッグで並び替えできます。</li>
+              <li>予定にはタグ、アイテム名、数量、予定単価を登録できます。</li>
+              <li>予定金額は数量 × 予定単価で自動的に扱われます。</li>
+              <li>一覧ではアイテム名の下に単価、数量、タグが表示されます。</li>
+              <li>追加済み予定は左端のハンドルでドラッグ並び替えできます。</li>
+              <li>各行右端の ⇈ / ⇊ で先頭または末尾へ移動できます。</li>
               <li>各行の累計差引で、上から順に実行した場合の資金推移を確認できます。</li>
-              <li>一覧行をクリックすると編集できます。</li>
+              <li>一覧行をクリックすると編集でき、編集画面では削除もできます。</li>
               <li>明細へ送ると、売却予定は収入、購入予定は支出として明細登録画面へ送られます。</li>
+              <li>予定数量より少ない数量で明細登録した場合、差分数量は予定に残ります。</li>
             </ul>
           </article>
 
@@ -304,7 +351,7 @@
           <article>
             <span>3</span>
             <h3>予定管理で資金計画を見る</h3>
-            <p>可用資金を登録し、売却予定と購入予定を並べて、装備更新や投資のキャッシュフローを確認します。</p>
+            <p>可用資金を登録し、売却予定と購入予定を数量と予定単価で並べて、装備更新や投資のキャッシュフローを確認します。</p>
           </article>
           <article>
             <span>4</span>
@@ -360,7 +407,7 @@
       <footer class="guide-footer">
         <span>© 2026 lawcemelo. All rights reserved.</span>
         <span>
-          pROfitia 収支管理支援アプリ / Version 1.0.1
+          pROfitia 収支管理支援アプリ / Version 1.0.2
           <a href="https://github.com/lawcemelo/pROfitia/blob/main/CHANGELOG.md" target="_blank" rel="noopener noreferrer">更新履歴</a>
           <a href="https://github.com/lawcemelo/pROfitia/blob/main/LICENSE" target="_blank" rel="noopener noreferrer">ライセンス</a>
         </span>
