@@ -1207,7 +1207,7 @@ function refreshConfigurationViews(selectedMap = elements.linkMap.value) {
 
 function updateTopCollapseState() {
   elements.stickyTop.classList.toggle("top-collapsed", state.topCollapsed);
-  elements.topCollapse.textContent = state.topCollapsed ? "展開する" : "折りたたむ";
+  elements.topCollapse.textContent = state.topCollapsed ? "サマリを表示" : "サマリを隠す";
   elements.topCollapse.setAttribute("aria-expanded", String(!state.topCollapsed));
   requestAnimationFrame(updateStickyTopHeight);
 }
@@ -4384,6 +4384,7 @@ function currentTime() {
 }
 
 function currentEntryTime() {
+  if (elements.time.classList.contains("hidden")) return currentTime();
   return elements.time.value || currentTime();
 }
 

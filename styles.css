@@ -180,15 +180,15 @@ h2 {
 
 .top-collapse-button {
   justify-self: end;
-  width: 96px;
+  width: 122px;
   min-height: 36px;
   border: 1px solid rgba(216, 222, 232, 0.9);
   border-radius: 999px;
   background: var(--panel-soft);
   color: var(--muted);
   cursor: pointer;
-  padding: 7px 14px;
-  font-size: 0.82rem;
+  padding: 7px 12px;
+  font-size: 0.8rem;
   font-weight: 900;
   white-space: nowrap;
   box-shadow: 0 10px 22px rgba(23, 35, 52, 0.08);
