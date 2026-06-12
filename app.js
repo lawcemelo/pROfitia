@@ -1,4 +1,4 @@
-const ENTRY_STORAGE_KEY = "game-ledger-entries";
+﻿const ENTRY_STORAGE_KEY = "game-ledger-entries";
 const MAP_LIST_STORAGE_KEY = "game-ledger-map-list";
 const ITEM_LIST_STORAGE_KEY = "game-ledger-item-list";
 const LINK_STORAGE_KEY = "game-ledger-map-item-links";
@@ -15,6 +15,22 @@ const WEEKLY_BAR_AXIS_MAX_STORAGE_KEY = "game-ledger-weekly-bar-axis-max";
 const WEEKLY_NET_AXIS_MAX_STORAGE_KEY = "game-ledger-weekly-net-axis-max";
 const MONTHLY_BAR_AXIS_MAX_STORAGE_KEY = "game-ledger-monthly-bar-axis-max";
 const MONTHLY_NET_AXIS_MAX_STORAGE_KEY = "game-ledger-monthly-net-axis-max";
+const WEEKLY_MD_AXIS_MAX_STORAGE_KEY = "game-ledger-weekly-md-axis-max";
+const MONTHLY_MD_AXIS_MAX_STORAGE_KEY = "game-ledger-monthly-md-axis-max";
+const CHARACTER_STORAGE_KEY = "game-ledger-characters";
+const MD_STORAGE_KEY = "game-ledger-md-list";
+const MD_RUN_STORAGE_KEY = "game-ledger-md-runs";
+const MD_UNLOCK_STORAGE_KEY = "game-ledger-md-unlocked";
+const MD_LAYOUT_STORAGE_KEY = "game-ledger-md-layout";
+const MD_MONITOR_IMPORTED_STORAGE_KEY = "game-ledger-md-monitor-imported";
+const MD_MONITOR_CHARACTER_STORAGE_KEY = "game-ledger-md-monitor-character";
+const MD_START_TIME_STORAGE_KEY = "game-ledger-md-start-time";
+const MD_START_AT_STORAGE_KEY = "game-ledger-md-start-at";
+const MD_RESET_TYPES = {
+  daily: { label: "日次", limit: 1 },
+  weekly2: { label: "週2", limit: 2 },
+  weekly1: { label: "週1", limit: 1 },
+};
 const LEGACY_ENTRY_STORAGE_KEY = "money-journal-entries";
 const LEGACY_MAP_STORAGE_KEY = "game-ledger-maps";
 const APP_STORAGE_KEYS = [
@@ -35,6 +51,17 @@ const APP_STORAGE_KEYS = [
   WEEKLY_NET_AXIS_MAX_STORAGE_KEY,
   MONTHLY_BAR_AXIS_MAX_STORAGE_KEY,
   MONTHLY_NET_AXIS_MAX_STORAGE_KEY,
+  WEEKLY_MD_AXIS_MAX_STORAGE_KEY,
+  MONTHLY_MD_AXIS_MAX_STORAGE_KEY,
+  CHARACTER_STORAGE_KEY,
+  MD_STORAGE_KEY,
+  MD_RUN_STORAGE_KEY,
+  MD_UNLOCK_STORAGE_KEY,
+  MD_LAYOUT_STORAGE_KEY,
+  MD_MONITOR_IMPORTED_STORAGE_KEY,
+  MD_MONITOR_CHARACTER_STORAGE_KEY,
+  MD_START_TIME_STORAGE_KEY,
+  MD_START_AT_STORAGE_KEY,
   LEGACY_ENTRY_STORAGE_KEY,
   LEGACY_MAP_STORAGE_KEY,
 ];
@@ -160,7 +187,7 @@ const themes = {
     values: { bg: "#fff0f8", panel: "#fffafd", ink: "#3a2033", muted: "#836377", line: "#e8bfd6", green: "#19846e", red: "#c53672", blue: "#8a5cc2", amber: "#c47b2b" },
   },
   sandstorm: {
-    label: "サンド",
+    label: "サンドストーム",
     values: { bg: "#f7f2e8", panel: "#fffdf8", ink: "#30291f", muted: "#796f61", line: "#ded4c2", green: "#547c4c", red: "#b55a4b", blue: "#647c94", amber: "#bd8629" },
   },
   monoDark: {
@@ -184,6 +211,22 @@ const state = {
   links: loadLinks(),
   plannedPurchases: loadPlannedPurchases(),
   memos: loadMemos(),
+  characters: loadCharacters(),
+  mdDungeons: loadMdDungeons(),
+  mdRuns: loadMdRuns(),
+  mdUnlocked: localStorage.getItem(MD_UNLOCK_STORAGE_KEY) === "true",
+  mdLayout: localStorage.getItem(MD_LAYOUT_STORAGE_KEY) === "dungeonRows" ? "dungeonRows" : "characterRows",
+  mdMonitorImportedIds: loadStringSet(MD_MONITOR_IMPORTED_STORAGE_KEY),
+  mdMonitorCharacterId: localStorage.getItem(MD_MONITOR_CHARACTER_STORAGE_KEY) || "",
+  mdStartTime: localStorage.getItem(MD_START_TIME_STORAGE_KEY) || "",
+  mdStartAt: localStorage.getItem(MD_START_AT_STORAGE_KEY) || "",
+  mdMonitorConnected: false,
+  mdMonitorTimer: null,
+  mdDrag: null,
+  mdEntryContext: null,
+  pendingCharacterIcon: "",
+  pendingMasterIcon: "",
+  iconCropContext: null,
   plannedCash: Number(localStorage.getItem(PLANNED_CASH_STORAGE_KEY) || 0),
   theme: localStorage.getItem(THEME_STORAGE_KEY) || "default",
   periodMode: "week",
@@ -204,6 +247,9 @@ const state = {
   tradeSummarySort: { key: "count", direction: "desc" },
   breakdownSort: { key: "amount", direction: "desc" },
   memoSort: { key: "updatedAt", direction: "desc" },
+  mdUnlockSequence: [],
+  summaryView: "overall",
+  expandedMdSummaryRows: new Set(),
   search: "",
   typeFilter: "all",
   barsExpanded: false,
@@ -214,6 +260,8 @@ const state = {
   weeklyNetAxisMax: Number(localStorage.getItem(WEEKLY_NET_AXIS_MAX_STORAGE_KEY) || 0),
   monthlyBarAxisMax: Number(localStorage.getItem(MONTHLY_BAR_AXIS_MAX_STORAGE_KEY) || localStorage.getItem(BAR_AXIS_MAX_STORAGE_KEY) || 0),
   monthlyNetAxisMax: Number(localStorage.getItem(MONTHLY_NET_AXIS_MAX_STORAGE_KEY) || localStorage.getItem(NET_AXIS_MAX_STORAGE_KEY) || 0),
+  weeklyMdAxisMax: Number(localStorage.getItem(WEEKLY_MD_AXIS_MAX_STORAGE_KEY) || 0),
+  monthlyMdAxisMax: Number(localStorage.getItem(MONTHLY_MD_AXIS_MAX_STORAGE_KEY) || 0),
 };
 
 const elements = {
@@ -233,9 +281,13 @@ const elements = {
     planned: document.querySelector("#plannedPanel"),
     summary: document.querySelector("#summaryPanel"),
     memo: document.querySelector("#memoPanel"),
+    md: document.querySelector("#mdPanel"),
     maps: document.querySelector("#mapsPanel"),
     items: document.querySelector("#itemsPanel"),
     links: document.querySelector("#linksPanel"),
+    characters: document.querySelector("#charactersPanel"),
+    mdTagLink: document.querySelector("#mdTagLinkPanel"),
+    mdMaster: document.querySelector("#mdMasterPanel"),
     settings: document.querySelector("#settingsPanel"),
   },
   entryWorkspace: document.querySelector("#entryWorkspace"),
@@ -248,6 +300,7 @@ const elements = {
   expenseFields: document.querySelector("#expenseFields"),
   entryGroupDetails: document.querySelector("#entryGroupDetails"),
   entryMap: document.querySelector("#entryMapInput"),
+  entryMd: document.querySelector("#entryMdInput"),
   entryItem: document.querySelector("#entryItemInput"),
   entryItemSelect: document.querySelector("#entryItemSelect"),
   expenseName: document.querySelector("#expenseNameInput"),
@@ -281,20 +334,61 @@ const elements = {
   itemAmount: document.querySelector("#itemAmountInput"),
   addItem: document.querySelector("#addItemButton"),
   itemList: document.querySelector("#itemList"),
+  mdTab: document.querySelector("#mdTabButton"),
+  characterName: document.querySelector("#characterNameInput"),
+  characterJob: document.querySelector("#characterJobInput"),
+  characterLevel: document.querySelector("#characterLevelInput"),
+  characterIcon: document.querySelector("#characterIconInput"),
+  characterIconStatus: document.querySelector("#characterIconStatus"),
+  addCharacter: document.querySelector("#addCharacterButton"),
+  characterList: document.querySelector("#characterList"),
+  mdName: document.querySelector("#mdNameInput"),
+  mdIdName: document.querySelector("#mdIdNameInput"),
+  mdConditionLevel: document.querySelector("#mdConditionLevelInput"),
+  mdResetType: document.querySelector("#mdResetTypeInput"),
+  addMd: document.querySelector("#addMdButton"),
+  mdList: document.querySelector("#mdList"),
+  mdTagLinkTag: document.querySelector("#mdTagLinkTagInput"),
+  mdTagLinkTagChipInput: document.querySelector("#mdTagLinkTagChipInput"),
+  mdTagLinkTagChipList: document.querySelector("#mdTagLinkTagChipList"),
+  mdTagLinkTagSuggestions: document.querySelector("#mdTagLinkTagSuggestions"),
+  mdTagLinkMd: document.querySelector("#mdTagLinkMdInput"),
+  addMdTagLink: document.querySelector("#addMdTagLinkButton"),
+  mdLayoutButtons: document.querySelectorAll("[data-md-layout]"),
+  mdMonitorCharacter: document.querySelector("#mdMonitorCharacterInput"),
+  mdStartTime: document.querySelector("#mdStartTimeInput"),
+  mdStartNow: document.querySelector("#mdStartNowButton"),
+  mdElapsedTime: document.querySelector("#mdElapsedTime"),
+  mdMonitorConnect: document.querySelector("#mdMonitorConnectButton"),
+  mdMonitorFetch: document.querySelector("#mdMonitorFetchButton"),
+  mdMonitorStatus: document.querySelector("#mdMonitorStatus"),
+  mdWeekGrid: document.querySelector("#mdWeekGrid"),
   itemHistoryOptions: document.querySelector("#itemHistoryOptions"),
   linkMap: document.querySelector("#linkMapInput"),
   linkItem: document.querySelector("#linkItemInput"),
   addLink: document.querySelector("#addLinkButton"),
   linkList: document.querySelector("#linkList"),
-  modeButtons: document.querySelectorAll(".mode-button"),
+  modeButtons: document.querySelectorAll("[data-mode]"),
   monthSelectors: document.querySelector("#monthSelectors"),
   year: document.querySelector("#yearInput"),
   monthSelect: document.querySelector("#monthInput"),
   period: document.querySelector("#periodPicker"),
   periodList: document.querySelector("#periodList"),
   summaryDetail: document.querySelector("#summaryDetail"),
+  summaryFilterToggle: document.querySelector("#summaryFilterToggle"),
+  summaryFilterBody: document.querySelector("#summaryFilterBody"),
+  summaryTagCondition: document.querySelector("#summaryTagCondition"),
+  summaryTagChipInput: document.querySelector("#summaryTagChipInput"),
+  summaryTagChipList: document.querySelector("#summaryTagChipList"),
+  summaryTags: document.querySelector("#summaryTagsInput"),
+  summaryTagSuggestions: document.querySelector("#summaryTagSuggestions"),
+  summaryFilterClear: document.querySelector("#summaryFilterClearButton"),
+  summaryFilterStatus: document.querySelector("#summaryFilterStatus"),
+  summaryViewButtons: document.querySelectorAll("[data-summary-view]"),
   trendChartTitle: document.querySelector("#trendChartTitle"),
   yearChart: document.querySelector("#yearChart"),
+  summaryChartLegend: document.querySelector("#summaryChartLegend"),
+  chartAxisControls: document.querySelector("#chartAxisControls"),
   barAxisMaxButton: document.querySelector("#barAxisMaxButton"),
   netAxisMaxButton: document.querySelector("#netAxisMaxButton"),
   barAxisMaxDisplay: document.querySelector("#barAxisMaxDisplay"),
@@ -374,6 +468,21 @@ const elements = {
   typeFilter: document.querySelector("#typeFilter"),
   template: document.querySelector("#entryTemplate"),
   themeGrid: document.querySelector("#themeGrid"),
+  mdEntryModal: document.querySelector("#mdEntryModal"),
+  mdEntryForm: document.querySelector("#mdEntryForm"),
+  closeMdEntry: document.querySelector("#closeMdEntryButton"),
+  mdEntryDate: document.querySelector("#mdEntryDateInput"),
+  mdEntryTime: document.querySelector("#mdEntryTimeInput"),
+  mdEntryMd: document.querySelector("#mdEntryMdInput"),
+  mdEntryDuration: document.querySelector("#mdEntryDurationInput"),
+  mdEntryLines: document.querySelector("#mdEntryLines"),
+  mdEntryLineTemplate: document.querySelector("#mdEntryLineTemplate"),
+  addMdEntryLine: document.querySelector("#addMdEntryLineButton"),
+  mdEntryItem: document.querySelector("#mdEntryItemInput"),
+  mdEntryUnitPriceLabel: document.querySelector("#mdEntryUnitPriceLabel"),
+  mdEntryUnitPrice: document.querySelector("#mdEntryUnitPriceInput"),
+  mdEntryQuantity: document.querySelector("#mdEntryQuantityInput"),
+  mdEntryAmount: document.querySelector("#mdEntryAmountInput"),
   editModal: document.querySelector("#editModal"),
   editForm: document.querySelector("#editForm"),
   closeEdit: document.querySelector("#closeEditButton"),
@@ -385,6 +494,7 @@ const elements = {
   editExpenseFields: document.querySelector("#editExpenseFields"),
   editGroupDetails: document.querySelector("#editGroupDetails"),
   editMap: document.querySelector("#editMapInput"),
+  editMd: document.querySelector("#editMdInput"),
   editItem: document.querySelector("#editItemInput"),
   editItemSelect: document.querySelector("#editItemSelect"),
   editIncomePriceField: document.querySelector(".edit-income-price-field"),
@@ -396,6 +506,7 @@ const elements = {
   editQuantity: document.querySelector("#editQuantityInput"),
   editCalcAssist: document.querySelector("#editCalcAssistButton"),
   editAmount: document.querySelector("#editAmountInput"),
+  plannedTransferRemainderNotice: document.querySelector("#plannedTransferRemainderNotice"),
   editTagChipInput: document.querySelector("#editTagChipInput"),
   editTagChipList: document.querySelector("#editTagChipList"),
   editTags: document.querySelector("#editTagsInput"),
@@ -432,7 +543,27 @@ const elements = {
   masterName: document.querySelector("#masterNameInput"),
   masterAmountLabel: document.querySelector("#masterAmountLabel"),
   masterAmount: document.querySelector("#masterAmountInput"),
+  masterJobLabel: document.querySelector("#masterJobLabel"),
+  masterJob: document.querySelector("#masterJobInput"),
+  masterCharacterLevelLabel: document.querySelector("#masterCharacterLevelLabel"),
+  masterCharacterLevel: document.querySelector("#masterCharacterLevelInput"),
+  masterIconLabel: document.querySelector("#masterIconLabel"),
+  masterIcon: document.querySelector("#masterIconInput"),
+  masterMdIdNameLabel: document.querySelector("#masterMdIdNameLabel"),
+  masterMdIdName: document.querySelector("#masterMdIdNameInput"),
+  masterMdConditionLevelLabel: document.querySelector("#masterMdConditionLevelLabel"),
+  masterMdConditionLevel: document.querySelector("#masterMdConditionLevelInput"),
+  masterMdResetTypeLabel: document.querySelector("#masterMdResetTypeLabel"),
+  masterMdResetType: document.querySelector("#masterMdResetTypeInput"),
   deleteMaster: document.querySelector("#deleteMasterButton"),
+  iconCropModal: document.querySelector("#iconCropModal"),
+  iconCropCanvas: document.querySelector("#iconCropCanvas"),
+  iconCropZoom: document.querySelector("#iconCropZoomInput"),
+  iconCropX: document.querySelector("#iconCropXInput"),
+  iconCropY: document.querySelector("#iconCropYInput"),
+  closeIconCrop: document.querySelector("#closeIconCropButton"),
+  cancelIconCrop: document.querySelector("#cancelIconCropButton"),
+  applyIconCrop: document.querySelector("#applyIconCropButton"),
   plannedEditModal: document.querySelector("#plannedEditModal"),
   plannedEditForm: document.querySelector("#plannedEditForm"),
   plannedEditTitle: document.querySelector("#plannedEditTitle"),
@@ -472,6 +603,8 @@ function init() {
   updatePeriodLabel();
   updateTopCollapseState();
   updateStickyTopHeight();
+  updateMdTabVisibility();
+  setupSettingsInterfaceGroups();
   bindEvents();
   refreshConfigurationViews();
   updateEntryMode();
@@ -484,11 +617,13 @@ function bindEvents() {
   setupTagInput(elements.tags, elements.tagChipInput, elements.tagChipList, elements.tagSuggestions);
   setupTagInput(elements.editTags, elements.editTagChipInput, elements.editTagChipList, elements.editTagSuggestions);
   setupTagInput(elements.searchTags, elements.searchTagChipInput, elements.searchTagChipList, elements.searchTagSuggestions, renderItemSearchResults);
+  setupTagInput(elements.summaryTags, elements.summaryTagChipInput, elements.summaryTagChipList, elements.summaryTagSuggestions, renderSummaryViews);
   setupTagInput(elements.plannedTags, elements.plannedTagChipInput, elements.plannedTagChipList, elements.plannedTagSuggestions);
   setupTagInput(elements.plannedEditTags, elements.plannedEditTagChipInput, elements.plannedEditTagChipList, elements.plannedEditTagSuggestions);
   setupTagInput(elements.memoTag, elements.memoTagChipInput, elements.memoTagChipList, elements.memoTagSuggestions);
   setupTagInput(elements.memoSearchTag, elements.memoSearchTagChipInput, elements.memoSearchTagChipList, elements.memoSearchTagSuggestions, renderMemos);
   setupTagInput(elements.memoEditTag, elements.memoEditTagChipInput, elements.memoEditTagChipList, elements.memoEditTagSuggestions);
+  setupTagInput(elements.mdTagLinkTag, elements.mdTagLinkTagChipInput, elements.mdTagLinkTagChipList, elements.mdTagLinkTagSuggestions, updateMdTagApplyButton);
 
   elements.openHelp?.addEventListener("click", openHelpModal);
   elements.closeHelp?.addEventListener("click", closeHelpModal);
@@ -520,11 +655,99 @@ function bindEvents() {
     button.addEventListener("click", () => scrollToSettingsBlock(button.dataset.settingsTarget));
   });
 
+  document.addEventListener("keydown", handleMdUnlockShortcut);
   window.addEventListener("resize", updateStickyTopHeight);
+
+  elements.addCharacter.addEventListener("click", addCharacter);
+  elements.characterName.addEventListener("keydown", submitCharacterOnEnter);
+  elements.characterJob.addEventListener("keydown", submitCharacterOnEnter);
+  elements.characterLevel.addEventListener("keydown", submitCharacterOnEnter);
+  elements.characterIcon.addEventListener("change", () => openIconCropFromInput(elements.characterIcon, "character"));
+  elements.characterList.addEventListener("click", (event) => {
+    const levelButton = event.target.closest(".character-level-up-button");
+    if (levelButton) {
+      event.stopPropagation();
+      levelUpCharacter(levelButton.dataset.id);
+      return;
+    }
+    const row = event.target.closest(".character-master-row");
+    if (row) openMasterEditModal("character", row.dataset.id);
+  });
+
+  elements.addMd.addEventListener("click", addMdDungeon);
+  elements.mdName.addEventListener("keydown", submitMdOnEnter);
+  elements.mdIdName.addEventListener("keydown", submitMdOnEnter);
+  elements.mdConditionLevel.addEventListener("keydown", submitMdOnEnter);
+  elements.mdResetType.addEventListener("keydown", submitMdOnEnter);
+  elements.mdList.addEventListener("click", (event) => {
+    const visibilityButton = event.target.closest(".md-visibility-button");
+    if (visibilityButton) {
+      event.stopPropagation();
+      toggleMdDungeonVisibility(visibilityButton.dataset.id, true);
+      return;
+    }
+    const row = event.target.closest(".md-master-row");
+    if (row) openMasterEditModal("md", row.dataset.id);
+  });
+
+  elements.mdWeekGrid.addEventListener("click", (event) => {
+    const visibilityButton = event.target.closest(".md-visibility-button");
+    if (visibilityButton) {
+      event.stopPropagation();
+      toggleMdDungeonVisibility(visibilityButton.dataset.id, true);
+      return;
+    }
+    const slot = event.target.closest(".md-run-slot");
+    if (slot) toggleMdRunSlot(slot.dataset.characterId, slot.dataset.mdId, slot.dataset.runId);
+  });
+  elements.mdWeekGrid.addEventListener("contextmenu", (event) => {
+    const slot = event.target.closest(".md-run-slot");
+    if (!slot) return;
+    event.preventDefault();
+    openMdEntryModal(slot.dataset.mdId, slot.dataset.characterId, slot.dataset.runId);
+  });
+  elements.mdWeekGrid.addEventListener("dragstart", handleMdHeaderDragStart);
+  elements.mdWeekGrid.addEventListener("dragover", handleMdHeaderDragOver);
+  elements.mdWeekGrid.addEventListener("dragleave", handleMdHeaderDragLeave);
+  elements.mdWeekGrid.addEventListener("drop", handleMdHeaderDrop);
+  elements.mdWeekGrid.addEventListener("dragend", handleMdHeaderDragEnd);
+  elements.mdLayoutButtons.forEach((button) => {
+    button.addEventListener("click", () => {
+      state.mdLayout = button.dataset.mdLayout;
+      localStorage.setItem(MD_LAYOUT_STORAGE_KEY, state.mdLayout);
+      updateMdLayoutToggle();
+      renderMdWeekGrid();
+    });
+  });
+  elements.mdMonitorCharacter.addEventListener("change", () => {
+    state.mdMonitorCharacterId = elements.mdMonitorCharacter.value;
+    localStorage.setItem(MD_MONITOR_CHARACTER_STORAGE_KEY, state.mdMonitorCharacterId);
+  });
+  elements.mdStartTime.value = state.mdStartTime;
+  elements.mdStartTime.addEventListener("change", () => {
+    state.mdStartTime = elements.mdStartTime.value;
+    state.mdStartAt = "";
+    localStorage.setItem(MD_START_TIME_STORAGE_KEY, state.mdStartTime);
+    localStorage.removeItem(MD_START_AT_STORAGE_KEY);
+    updateMdElapsedTime();
+  });
+  elements.mdStartNow.addEventListener("click", () => {
+    const startedAt = new Date();
+    state.mdStartTime = timeFromDate(startedAt);
+    state.mdStartAt = startedAt.toISOString();
+    elements.mdStartTime.value = state.mdStartTime;
+    localStorage.setItem(MD_START_TIME_STORAGE_KEY, state.mdStartTime);
+    localStorage.setItem(MD_START_AT_STORAGE_KEY, state.mdStartAt);
+    updateMdElapsedTime();
+  });
+  updateMdElapsedTime();
+  window.setInterval(updateMdElapsedTime, 1000);
+  elements.mdMonitorConnect.addEventListener("click", toggleMdMonitorConnection);
+  elements.mdMonitorFetch.addEventListener("click", fetchMdMonitorEvents);
 
   elements.targetBalanceButton.addEventListener("click", () => {
     const isWeek = state.periodMode === "week";
-    const label = isWeek ? "週間収支目標" : "月間収支目標";
+    const label = isWeek ? "週次目標収支" : "月次目標収支";
     const input = window.prompt(`${label}を入力してください`, formatAmount(currentTargetBalance()));
     if (input === null) return;
     const value = parseAmount(input);
@@ -608,6 +831,8 @@ function bindEvents() {
       amount: parseAmount(elements.amount.value),
       map: resolvedEntryMap(itemName),
       item: itemName,
+      mdId: elements.entryMd.value || "",
+      mdName: mdNameById(elements.entryMd.value),
       quantity: parseQuantityInput(elements.quantity.value) || 1,
       unitPrice: currentUnitPrice(),
       tags: getTagValues(elements.tags),
@@ -620,6 +845,7 @@ function bindEvents() {
     setTagValues(elements.tags, elements.tagChipList, []);
     elements.expenseName.value = "";
     elements.expenseNameSelect.value = "";
+    elements.entryMd.value = "";
     elements.unitPrice.value = "";
     elements.quantity.value = "1";
     elements.date.value = entry.date;
@@ -638,6 +864,7 @@ function bindEvents() {
 
   elements.form.addEventListener("change", (event) => {
     if (event.target.name === "type") {
+      syncEntryFieldsForTypeSwitch();
       updateEntryMode();
       renderFrequentTags();
       updateAmount();
@@ -761,6 +988,11 @@ function bindEvents() {
     refreshConfigurationViews(map);
   });
 
+  elements.addMdTagLink.addEventListener("click", addMdTagLink);
+  elements.mdTagLinkTag.addEventListener("keydown", submitMdTagLinkOnEnter);
+  elements.mdTagLinkMd.addEventListener("change", updateMdTagApplyButton);
+  elements.mdTagLinkMd.addEventListener("keydown", submitMdTagLinkOnEnter);
+
   [elements.itemAmount, elements.masterAmount].forEach((input) => {
     input.addEventListener("input", (event) => {
       if (!isComposingInputEvent(event)) formatMoneyInput(input);
@@ -779,8 +1011,28 @@ function bindEvents() {
     requestAnimationFrame(() => window.scrollTo(scrollX, scrollY));
   });
 
+  elements.summaryFilterToggle.addEventListener("click", () => {
+    const collapsed = elements.summaryFilterBody.classList.toggle("hidden");
+    elements.summaryFilterToggle.setAttribute("aria-expanded", String(!collapsed));
+    elements.summaryFilterToggle.querySelector("strong").textContent = collapsed ? "+" : "-";
+  });
+
+  elements.summaryTagCondition.addEventListener("change", renderSummaryViews);
+  elements.summaryFilterClear.addEventListener("click", () => {
+    elements.summaryTagCondition.value = "includeAny";
+    setTagValues(elements.summaryTags, elements.summaryTagChipList, []);
+    renderSummaryViews();
+  });
+  elements.summaryViewButtons.forEach((button) => {
+    button.addEventListener("click", () => {
+      state.summaryView = button.dataset.summaryView === "md" ? "md" : "overall";
+      renderSummaryViews();
+    });
+  });
+
   elements.modeButtons.forEach((button) => {
     button.addEventListener("click", () => {
+      if (!["week", "month"].includes(button.dataset.mode)) return;
       setPeriodMode(button.dataset.mode);
     });
   });
@@ -921,6 +1173,11 @@ function bindEvents() {
   });
 
   elements.summaryDetail.addEventListener("click", (event) => {
+    const mdToggle = event.target.closest(".md-summary-toggle");
+    if (mdToggle) {
+      toggleMdSummaryBreakdown(mdToggle.dataset.mdLabel);
+      return;
+    }
     const button = event.target.closest(".breakdown-sort-button");
     if (!button) return;
     updateBreakdownSort(button.dataset.sort);
@@ -929,6 +1186,33 @@ function bindEvents() {
   elements.ledgerList.addEventListener("click", (event) => {
     const item = event.target.closest(".entry-item");
     if (item) openEditModal(item.dataset.id);
+  });
+
+  elements.closeMdEntry.addEventListener("click", closeMdEntryModal);
+  elements.mdEntryModal.addEventListener("click", (event) => {
+    if (event.target === elements.mdEntryModal) closeMdEntryModal();
+  });
+  elements.addMdEntryLine.addEventListener("click", () => addMdEntryLine());
+  elements.mdEntryForm.addEventListener("change", (event) => {
+    if (event.target.classList.contains("md-entry-line-type")) updateMdEntryLineAccent(event.target.closest(".md-entry-line"));
+  });
+  elements.mdEntryForm.addEventListener("input", (event) => {
+    if (event.target.id === "mdEntryDurationInput" && !isComposingInputEvent(event)) formatQuantityInput(event.target);
+    if (event.target.classList.contains("md-entry-line-quantity") && !isComposingInputEvent(event)) formatQuantityInput(event.target);
+    if (event.target.classList.contains("md-entry-line-price") || event.target.classList.contains("md-entry-line-quantity")) {
+      updateMdEntryLineAmount(event.target.closest(".md-entry-line"));
+    }
+  });
+  elements.mdEntryForm.addEventListener("click", (event) => {
+    const deleteButton = event.target.closest(".md-entry-line-delete");
+    if (!deleteButton) return;
+    if (elements.mdEntryLines.children.length <= 1) return;
+    deleteButton.closest(".md-entry-line").remove();
+  });
+  elements.mdEntryForm.addEventListener("submit", (event) => {
+    event.preventDefault();
+    if (normalizeActiveMoneyShortcut()) return;
+    saveMdEntry();
   });
 
   elements.closeEdit.addEventListener("click", closeEditModal);
@@ -1048,6 +1332,7 @@ function bindEvents() {
   });
 
   elements.closeMasterEdit.addEventListener("click", closeMasterEditModal);
+  elements.masterIcon.addEventListener("change", () => openIconCropFromInput(elements.masterIcon, "master"));
   elements.masterEditModal.addEventListener("click", (event) => {
     if (event.target === elements.masterEditModal) closeMasterEditModal();
   });
@@ -1056,6 +1341,15 @@ function bindEvents() {
     saveMasterEdit();
   });
   elements.deleteMaster.addEventListener("click", deleteMasterEdit);
+  elements.closeIconCrop.addEventListener("click", cancelIconCrop);
+  elements.cancelIconCrop.addEventListener("click", cancelIconCrop);
+  elements.applyIconCrop.addEventListener("click", applyIconCrop);
+  elements.iconCropModal.addEventListener("click", (event) => {
+    if (event.target === elements.iconCropModal) cancelIconCrop();
+  });
+  [elements.iconCropZoom, elements.iconCropX, elements.iconCropY].forEach((input) => {
+    input.addEventListener("input", renderIconCropPreview);
+  });
   elements.closePlannedEdit.addEventListener("click", closePlannedEditModal);
   elements.deletePlannedEdit.addEventListener("click", deletePlannedEdit);
   elements.plannedEditModal.addEventListener("click", (event) => {
@@ -1163,6 +1457,128 @@ function setupMoneyUnitShortcuts() {
   );
 }
 
+function setupSettingsInterfaceGroups() {
+  const settingsContent = document.querySelector(".settings-content");
+  if (!settingsContent || document.querySelector("#settingsGroupManagement")) return;
+
+  const groupMasterPanel = settingsContent.querySelector(":scope > .settings-panel");
+  const groupDetails = createSettingsInterfaceGroup("settingsGroupManagement", "グループ管理");
+  const mdDetails = createSettingsInterfaceGroup("settingsMdManagement", "MD管理");
+
+  if (groupMasterPanel) {
+    settingsContent.insertBefore(groupDetails, groupMasterPanel);
+    groupDetails.querySelector(".settings-interface-group-body").append(groupMasterPanel, elements.panels.items, elements.panels.links);
+  }
+
+  settingsContent.append(mdDetails);
+  mdDetails.querySelector(".settings-interface-group-body").append(elements.panels.characters, elements.panels.mdMaster, elements.panels.mdTagLink);
+}
+
+function createSettingsInterfaceGroup(id, title) {
+  const details = document.createElement("details");
+  details.id = id;
+  details.className = "settings-interface-group";
+  details.innerHTML = `
+    <summary>${escapeHTML(title)}</summary>
+    <div class="settings-interface-group-body"></div>
+  `;
+  return details;
+}
+
+function openIconCropFromInput(input, target) {
+  const file = input.files?.[0];
+  if (!file) return;
+  if (!file.type.startsWith("image/")) {
+    window.alert("画像ファイルを選択してください。");
+    input.value = "";
+    if (target === "character") updateCharacterIconStatus();
+    return;
+  }
+  if (target === "character") updateCharacterIconStatus(file.name);
+  const reader = new FileReader();
+  reader.addEventListener("load", () => {
+    const image = new Image();
+    image.addEventListener("load", () => {
+      state.iconCropContext = { target, image };
+      elements.iconCropZoom.value = "1";
+      elements.iconCropX.value = "0";
+      elements.iconCropY.value = "0";
+      elements.iconCropModal.classList.remove("hidden");
+      renderIconCropPreview();
+    });
+    image.src = String(reader.result || "");
+  });
+  reader.readAsDataURL(file);
+}
+
+function renderIconCropPreview() {
+  if (!state.iconCropContext) return;
+  const canvas = elements.iconCropCanvas;
+  const context = canvas.getContext("2d");
+  const image = state.iconCropContext.image;
+  const size = canvas.width;
+  const zoom = Number(elements.iconCropZoom.value || 1);
+  const baseScale = Math.max(size / image.width, size / image.height);
+  const scale = baseScale * zoom;
+  const drawWidth = image.width * scale;
+  const drawHeight = image.height * scale;
+  const overflowX = Math.max(0, drawWidth - size);
+  const overflowY = Math.max(0, drawHeight - size);
+  const offsetX = (Number(elements.iconCropX.value || 0) / 100) * (overflowX / 2);
+  const offsetY = (Number(elements.iconCropY.value || 0) / 100) * (overflowY / 2);
+  const x = (size - drawWidth) / 2 + offsetX;
+  const y = (size - drawHeight) / 2 + offsetY;
+
+  context.clearRect(0, 0, size, size);
+  context.save();
+  context.beginPath();
+  if (typeof context.roundRect === "function") {
+    context.roundRect(0, 0, size, size, 18);
+  } else {
+    context.rect(0, 0, size, size);
+  }
+  context.clip();
+  context.fillStyle = "#fff";
+  context.fillRect(0, 0, size, size);
+  context.drawImage(image, x, y, drawWidth, drawHeight);
+  context.restore();
+}
+
+function applyIconCrop() {
+  if (!state.iconCropContext) return;
+  renderIconCropPreview();
+  const dataUrl = elements.iconCropCanvas.toDataURL("image/png");
+  if (state.iconCropContext.target === "master") {
+    state.pendingMasterIcon = dataUrl;
+    elements.masterIcon.value = "";
+  } else {
+    state.pendingCharacterIcon = dataUrl;
+    elements.characterIcon.value = "";
+    updateCharacterIconStatus("アイコン選択済み");
+  }
+  closeIconCropModal();
+}
+
+function cancelIconCrop() {
+  const target = state.iconCropContext?.target;
+  closeIconCropModal();
+  if (target === "master") elements.masterIcon.value = "";
+  if (target === "character") {
+    elements.characterIcon.value = "";
+    updateCharacterIconStatus();
+  }
+}
+
+function updateCharacterIconStatus(text = "") {
+  if (!elements.characterIconStatus) return;
+  elements.characterIconStatus.textContent = text || "未選択";
+}
+
+function closeIconCropModal() {
+  state.iconCropContext = null;
+  elements.iconCropModal.classList.add("hidden");
+}
+
 function render() {
   updateItemHistoryOptions();
   const period = currentRange();
@@ -1177,7 +1593,7 @@ function render() {
   elements.balanceTotal.classList.toggle("negative-total", balance < 0);
   elements.balanceTotal.classList.toggle("positive-total", balance >= 0);
   const targetBalance = currentTargetBalance();
-  elements.targetBalanceLabel.textContent = state.periodMode === "week" ? "週間収支目標" : "月間収支目標";
+  elements.targetBalanceLabel.textContent = state.periodMode === "week" ? "週次目標収支：" : "月次目標収支：";
   elements.targetBalanceTotal.textContent = yen.format(targetBalance);
   const targetDiff = currentTargetActualBalance(period.start) - targetBalance;
   elements.targetDiffTotal.textContent = formatSignedYen(targetDiff);
@@ -1186,47 +1602,93 @@ function render() {
 
   renderMapBars(periodEntries);
   renderLedger(filterEntries(periodEntries));
-  renderPeriodList();
-  renderYearChart();
+  renderSummaryViews();
   renderItemSearchResults();
   renderPlannedPurchases();
   renderMemos();
+  renderMdManagement();
   updateTagOptions();
+}
+
+function renderSummaryViews() {
+  elements.summaryViewButtons.forEach((button) => {
+    button.classList.toggle("active", button.dataset.summaryView === state.summaryView);
+  });
+  updateSummaryChartFooter();
+  renderPeriodList();
+  renderYearChart();
+  updateSummaryFilterStatus();
+}
+
+function updateSummaryChartFooter() {
+  if (elements.summaryChartLegend) {
+    elements.summaryChartLegend.classList.toggle("hidden", state.summaryView === "md");
+    elements.summaryChartLegend.innerHTML = `
+      <span><i class="legend-income"></i>収入</span>
+      <span><i class="legend-expense"></i>支出</span>
+      <span><i class="legend-net"></i>収支</span>
+      <span><i class="legend-target"></i>目標収支</span>
+    `;
+  }
+  if (elements.chartAxisControls) {
+    elements.chartAxisControls.classList.remove("hidden");
+    elements.chartAxisControls.classList.toggle("md-axis-mode", state.summaryView === "md");
+  }
+  updateAxisLimitInputs();
 }
 
 function refreshConfigurationViews(selectedMap = elements.linkMap.value) {
   updateEntryMapOptions();
+  updateEntryMdOptions();
   updateEntryItemOptions();
+  updateMdTagLinkOptions();
   fillUnitPriceFromSelectedItem();
   updateAmount();
   updateLinkOptions(selectedMap);
   renderMapList();
   renderItemList();
   renderLinkList();
+  updateMdTagApplyButton();
+  renderCharacterList();
+  renderMdList();
+  updateMdMonitorCharacterOptions();
 }
 
 function updateTopCollapseState() {
   elements.stickyTop.classList.toggle("top-collapsed", state.topCollapsed);
-  elements.topCollapse.textContent = state.topCollapsed ? "サマリを表示" : "サマリを隠す";
+  elements.topCollapse.textContent = state.topCollapsed ? "▼" : "▲";
   elements.topCollapse.setAttribute("aria-expanded", String(!state.topCollapsed));
   requestAnimationFrame(updateStickyTopHeight);
 }
 
 function updateAxisLimitInputs() {
   const limits = currentAxisLimits();
-  elements.barAxisMaxDisplay.textContent = limits.bar > 0 ? yen.format(limits.bar) : "自動";
-  elements.netAxisMaxDisplay.textContent = limits.net > 0 ? yen.format(limits.net) : "自動";
+  if (state.summaryView === "md") {
+    elements.netAxisMaxButton.textContent = "MD収支軸登録";
+    elements.netAxisMaxDisplay.parentElement.firstChild.textContent = "MD収支軸 ";
+    elements.netAxisMaxDisplay.textContent = limits.md > 0 ? yen.format(limits.md) : "制限なし";
+    return;
+  }
+  elements.netAxisMaxButton.textContent = "収支軸登録";
+  elements.netAxisMaxDisplay.parentElement.firstChild.textContent = "収支軸 ";
+  elements.barAxisMaxDisplay.textContent = limits.bar > 0 ? yen.format(limits.bar) : "制限なし";
+  elements.netAxisMaxDisplay.textContent = limits.net > 0 ? yen.format(limits.net) : "制限なし";
 }
 
 function updateAxisLimit(axis) {
   const limits = currentAxisLimits();
-  const label = axis === "bar" ? "収入/支出軸上限" : "収支軸上限";
-  const currentValue = axis === "bar" ? limits.bar : limits.net;
-  const input = window.prompt(`${label}を入力してください（空欄または0で自動）`, currentValue > 0 ? formatAmount(currentValue) : "");
+  if (state.summaryView === "md" && axis === "bar") return;
+  const isMdAxis = state.summaryView === "md";
+  const label = isMdAxis ? "MD収支上限値" : axis === "bar" ? "収入支出上限値" : "収支上限値";
+  const currentValue = isMdAxis ? limits.md : axis === "bar" ? limits.bar : limits.net;
+  const input = window.prompt(`${label}（0で未設定）`, currentValue > 0 ? formatAmount(currentValue) : "");
   if (input === null) return;
   const value = parseAmount(input);
   if (state.periodMode === "week") {
-    if (axis === "bar") {
+    if (isMdAxis) {
+      state.weeklyMdAxisMax = value;
+      localStorage.setItem(WEEKLY_MD_AXIS_MAX_STORAGE_KEY, String(value));
+    } else if (axis === "bar") {
       state.weeklyBarAxisMax = value;
       localStorage.setItem(WEEKLY_BAR_AXIS_MAX_STORAGE_KEY, String(value));
     } else {
@@ -1234,7 +1696,10 @@ function updateAxisLimit(axis) {
       localStorage.setItem(WEEKLY_NET_AXIS_MAX_STORAGE_KEY, String(value));
     }
   } else {
-    if (axis === "bar") {
+    if (isMdAxis) {
+      state.monthlyMdAxisMax = value;
+      localStorage.setItem(MONTHLY_MD_AXIS_MAX_STORAGE_KEY, String(value));
+    } else if (axis === "bar") {
       state.monthlyBarAxisMax = value;
       localStorage.setItem(MONTHLY_BAR_AXIS_MAX_STORAGE_KEY, String(value));
     } else {
@@ -1248,8 +1713,8 @@ function updateAxisLimit(axis) {
 
 function currentAxisLimits() {
   return state.periodMode === "week"
-    ? { bar: state.weeklyBarAxisMax, net: state.weeklyNetAxisMax }
-    : { bar: state.monthlyBarAxisMax, net: state.monthlyNetAxisMax };
+    ? { bar: state.weeklyBarAxisMax, net: state.weeklyNetAxisMax, md: state.weeklyMdAxisMax }
+    : { bar: state.monthlyBarAxisMax, net: state.monthlyNetAxisMax, md: state.monthlyMdAxisMax };
 }
 
 function updateStickyTopHeight() {
@@ -1274,17 +1739,18 @@ function renderLedger(entries) {
   if (entries.length === 0) {
     const empty = document.createElement("div");
     empty.className = "empty-state";
-    empty.textContent = "この条件に合う明細はありません";
+    empty.textContent = "この条件に一致する明細はありません";
     elements.ledgerList.append(empty);
     return;
   }
 
   for (const entry of entries) {
     const item = elements.template.content.firstElementChild.cloneNode(true);
-    const mapName = entry.map || entry.category || "未設定グループ";
+    const mapName = entry.map || entry.category || "カテゴリ未設定";
+    const mdName = entryMdName(entry);
     item.querySelector(".entry-date").textContent = `${formatDate(entry.date)} ${entry.time || "00:00"}`;
     item.querySelector(".entry-memo").textContent = entry.item || entry.memo || mapName;
-    item.querySelector(".entry-category").textContent = entrySubtitle(entry, mapName);
+    item.querySelector(".entry-category").textContent = entrySubtitle(entry, mapName, mdName);
 
     const amount = item.querySelector(".entry-amount");
     amount.textContent = `${entry.type === "income" ? "+" : "-"}${yen.format(entry.amount)}`;
@@ -1307,13 +1773,13 @@ function renderItemSearchResults() {
   if (!hasSearchCondition) {
     renderSearchTotals([], true);
     renderUnitPriceTrend([]);
-    renderSearchTable([], "検索条件を入力すると結果がここに表示されます");
+    renderSearchTable([], "検索条件を入力してください");
     return;
   }
 
   const results = state.entries
     .filter((entry) => {
-      const matchesKeyword = !keyword || (entry.item || "").toLowerCase().includes(keyword);
+      const matchesKeyword = !keyword || `${entry.item || ""} ${entryMdName(entry)}`.toLowerCase().includes(keyword);
       const matchesType = type === "all" || entry.type === type;
       const entryTags = normalizeTags(entry.tags);
       const matchesTag = searchTags.length === 0 || searchTags.some((tag) => entryTags.includes(tag));
@@ -1326,7 +1792,7 @@ function renderItemSearchResults() {
   renderUnitPriceTrend(results);
 
   if (results.length === 0) {
-    renderSearchTable([], "該当する収支データはありません");
+    renderSearchTable([], "条件に一致する明細がありません");
     return;
   }
 
@@ -1338,8 +1804,8 @@ function renderSearchTable(results, emptyMessage = "") {
   table.className = "search-table";
   table.innerHTML = `
     <div class="search-table-head">
-      ${searchSortHeader("date", "日時")}
-      ${searchSortHeader("type", "種別")}
+      ${searchSortHeader("date", "日付")}
+      ${searchSortHeader("type", "収支")}
       ${searchSortHeader("tags", "タグ")}
       ${searchSortHeader("item", "アイテム/項目")}
       ${searchSortHeader("quantity", "数量")}
@@ -1440,7 +1906,7 @@ function renderUnitPriceTrend(results) {
           ${series.map((itemSeries) => renderUnitPriceSeries(itemSeries, xOf, yOf)).join("")}
           ${medians.map((itemSeries) => {
             const y = yOf(itemSeries.value);
-            return `<line class="trend-median-line ${itemSeries.className}" x1="${chart.left}" y1="${y}" x2="${chart.left + chart.width}" y2="${y}"></line><text class="trend-median-label" x="${chart.left + chart.width - 6}" y="${y - 6}" text-anchor="end">${itemSeries.label} 直近3カ月中央値 ${formatShortAmount(itemSeries.value)}</text>`;
+            return `<line class="trend-median-line ${itemSeries.className}" x1="${chart.left}" y1="${y}" x2="${chart.left + chart.width}" y2="${y}"></line><text class="trend-median-label" x="${chart.left + chart.width - 6}" y="${y - 6}" text-anchor="end">${itemSeries.label} 直近3か月中央値 ${formatShortAmount(itemSeries.value)}</text>`;
           }).join("")}
         </svg>
         <div class="unit-price-legend">
@@ -1559,10 +2025,10 @@ function renderSearchTotals(results, shouldShow) {
   const expense = sum(results.filter((entry) => entry.type === "expense"));
   const balance = income - expense;
   const cards = [
-    { label: "ヒット数", valueText: `${results.length}件`, className: "" },
-    { label: "収入合計", valueText: yen.format(income), className: "income-text" },
-    { label: "支出合計", valueText: yen.format(expense), className: "expense-text" },
-    { label: "収支合計", valueText: formatSignedYen(balance), className: balance < 0 ? "expense-text" : "income-text" },
+    { label: "明細件数", valueText: `${results.length}件`, className: "" },
+    { label: "収入", valueText: yen.format(income), className: "income-text" },
+    { label: "支出", valueText: yen.format(expense), className: "expense-text" },
+    { label: "収支", valueText: formatSignedYen(balance), className: balance < 0 ? "expense-text" : "income-text" },
   ];
 
   for (const card of cards) {
@@ -1628,7 +2094,7 @@ function renderPlannedPurchases() {
     <span>種別</span>
     <span>アイテム / 内容</span>
     <span>予定金額</span>
-    <span>累計差引</span>
+    <span>累計差額</span>
     <span>登録</span>
     <span></span>
   `;
@@ -1647,7 +2113,7 @@ function renderPlannedPurchases() {
     const plannedMeta = [`単価 ${yen.format(planned.amount)}`, `数量 ${formatQuantity(quantity)}`];
     if (plannedTags) plannedMeta.push(plannedTags);
     row.innerHTML = `
-      <span class="drag-handle" draggable="true" data-id="${planned.id}" aria-label="並び替え">⋮⋮</span>
+      <span class="drag-handle" draggable="true" data-id="${planned.id}" aria-label="並び替え">↕</span>
       <span class="${isBuy ? "expense-text" : "income-text"}">${isBuy ? "購入" : "売却"}</span>
       <div class="planned-row-main">
         <strong>${escapeHTML(planned.item)}</strong>
@@ -1657,8 +2123,8 @@ function renderPlannedPurchases() {
       <span class="planned-running-net ${runningNet < 0 ? "expense-text" : "income-text"}">${formatSignedYen(runningNet)}</span>
       <button class="send-planned-button" type="button" data-id="${planned.id}">明細へ</button>
       <div class="planned-edge-actions" aria-label="並び替え">
-        <button class="planned-edge-button" type="button" data-id="${planned.id}" data-edge="top" aria-label="先頭へ" title="先頭へ" ${index === 0 ? "disabled" : ""}>⇈</button>
-        <button class="planned-edge-button" type="button" data-id="${planned.id}" data-edge="bottom" aria-label="末尾へ" title="末尾へ" ${index === state.plannedPurchases.length - 1 ? "disabled" : ""}>⇊</button>
+        <button class="planned-edge-button" type="button" data-id="${planned.id}" data-edge="top" aria-label="先頭へ" title="先頭へ" ${index === 0 ? "disabled" : ""}>↑</button>
+        <button class="planned-edge-button" type="button" data-id="${planned.id}" data-edge="bottom" aria-label="末尾へ" title="末尾へ" ${index === state.plannedPurchases.length - 1 ? "disabled" : ""}>↓</button>
       </div>
     `;
     elements.plannedList.append(row);
@@ -1680,6 +2146,7 @@ function openPlannedEntryModal(id) {
   elements.editGroupDetails.open = false;
   updateEditMapOptions("");
   updateEditItemOptions(isSell ? planned.item : "");
+  updateEntryMdOptions("");
   elements.editItem.value = isSell ? planned.item : "";
   elements.editExpenseName.value = isSell ? "" : planned.item;
   elements.editIncomeUnitPrice.value = isSell ? formatAmount(planned.amount) : "";
@@ -1821,7 +2288,7 @@ function plannedType() {
 }
 
 function registerPlannedCash() {
-  const input = window.prompt("可用資金を入力してください", formatAmount(state.plannedCash));
+  const input = window.prompt("使用可能資金を入力してください", formatAmount(state.plannedCash));
   if (input === null) return;
   state.plannedCash = parseAmount(input);
   localStorage.setItem(PLANNED_CASH_STORAGE_KEY, String(state.plannedCash));
@@ -1957,7 +2424,7 @@ function confirmClearMemoForm() {
     || elements.memoTitle.value.trim()
     || elements.memoBody.value.trim()
     || elements.memoDone.checked;
-  if (!hasInput || window.confirm("入力中のメモをクリアしますか？")) clearMemoForm();
+  if (!hasInput || window.confirm("入力内容を破棄してよろしいですか？")) clearMemoForm();
 }
 
 function saveMemo() {
@@ -2023,7 +2490,7 @@ function saveMemoEdit(event) {
 
 function deleteMemoFromEdit() {
   if (!state.editingMemoId) return;
-  if (!window.confirm("このメモを削除しますか？")) return;
+  if (!window.confirm("このメモを削除してよろしいですか？")) return;
   state.memos = state.memos.filter((memo) => memo.id !== state.editingMemoId);
   saveMemos();
   closeMemoEditModal();
@@ -2122,7 +2589,7 @@ function renderMemos() {
   if (memos.length === 0) {
     const empty = document.createElement("div");
     empty.className = "empty-state compact-empty";
-    empty.textContent = keyword ? "該当するメモはありません。" : "メモはまだありません。";
+    empty.textContent = keyword ? "条件に一致するメモがありません" : "メモがありません";
     elements.memoList.append(empty);
     return;
   }
@@ -2155,6 +2622,13 @@ function exportAppData() {
     links: state.links,
     plannedPurchases: state.plannedPurchases,
     memos: state.memos,
+    characters: state.characters,
+    mdDungeons: state.mdDungeons,
+    mdRuns: state.mdRuns,
+    mdUnlocked: state.mdUnlocked,
+    mdLayout: state.mdLayout,
+    mdMonitorImportedIds: [...state.mdMonitorImportedIds],
+    mdMonitorCharacterId: state.mdMonitorCharacterId,
     plannedCash: state.plannedCash,
     theme: state.theme,
     targetBalance: state.targetBalance,
@@ -2163,6 +2637,8 @@ function exportAppData() {
     weeklyNetAxisMax: state.weeklyNetAxisMax,
     monthlyBarAxisMax: state.monthlyBarAxisMax,
     monthlyNetAxisMax: state.monthlyNetAxisMax,
+    weeklyMdAxisMax: state.weeklyMdAxisMax,
+    monthlyMdAxisMax: state.monthlyMdAxisMax,
   };
   const blob = new Blob([JSON.stringify(data, null, 2)], { type: "application/json" });
   const url = URL.createObjectURL(blob);
@@ -2177,7 +2653,7 @@ function importAppData(event) {
   const file = event.target.files?.[0];
   event.target.value = "";
   if (!file) return;
-  if (!window.confirm("現在の登録データをインポート内容で置き換えます。よろしいですか？")) return;
+  if (!window.confirm("インポート内容で現在データを上書きします。続行しますか？")) return;
 
   const reader = new FileReader();
   reader.addEventListener("load", () => {
@@ -2196,14 +2672,23 @@ function importAppData(event) {
           }))
         : [];
       state.memos = normalizeMemos(data.memos);
+      state.characters = normalizeCharacters(data.characters);
+      state.mdDungeons = normalizeMdDungeons(data.mdDungeons);
+      state.mdRuns = normalizeMdRuns(data.mdRuns);
+      state.mdUnlocked = Boolean(data.mdUnlocked);
+      state.mdLayout = data.mdLayout === "dungeonRows" ? "dungeonRows" : "characterRows";
+      state.mdMonitorImportedIds = new Set(Array.isArray(data.mdMonitorImportedIds) ? data.mdMonitorImportedIds.map(String) : []);
+      state.mdMonitorCharacterId = String(data.mdMonitorCharacterId || "");
       state.plannedCash = Number(data.plannedCash || 0);
       state.theme = themes[data.theme] ? data.theme : "default";
       state.targetBalance = Number(data.targetBalance || 0);
       state.weeklyTargetBalance = Number(data.weeklyTargetBalance || 0);
       state.weeklyBarAxisMax = Number(data.weeklyBarAxisMax || 0);
       state.weeklyNetAxisMax = Number(data.weeklyNetAxisMax || 0);
-      state.monthlyBarAxisMax = Number(data.monthlyBarAxisMax ?? data.barAxisMax ?? 0);
-      state.monthlyNetAxisMax = Number(data.monthlyNetAxisMax ?? data.netAxisMax ?? 0);
+      state.monthlyBarAxisMax = Number(data.monthlyBarAxisMax || data.barAxisMax || 0);
+      state.monthlyNetAxisMax = Number(data.monthlyNetAxisMax || data.netAxisMax || 0);
+      state.weeklyMdAxisMax = Number(data.weeklyMdAxisMax || 0);
+      state.monthlyMdAxisMax = Number(data.monthlyMdAxisMax || 0);
       localStorage.setItem(THEME_STORAGE_KEY, state.theme);
       localStorage.setItem(TARGET_BALANCE_STORAGE_KEY, String(state.targetBalance));
       localStorage.setItem(WEEKLY_TARGET_BALANCE_STORAGE_KEY, String(state.weeklyTargetBalance));
@@ -2212,36 +2697,44 @@ function importAppData(event) {
       localStorage.setItem(WEEKLY_NET_AXIS_MAX_STORAGE_KEY, String(state.weeklyNetAxisMax));
       localStorage.setItem(MONTHLY_BAR_AXIS_MAX_STORAGE_KEY, String(state.monthlyBarAxisMax));
       localStorage.setItem(MONTHLY_NET_AXIS_MAX_STORAGE_KEY, String(state.monthlyNetAxisMax));
+      localStorage.setItem(WEEKLY_MD_AXIS_MAX_STORAGE_KEY, String(state.weeklyMdAxisMax));
+      localStorage.setItem(MONTHLY_MD_AXIS_MAX_STORAGE_KEY, String(state.monthlyMdAxisMax));
+      localStorage.setItem(MD_UNLOCK_STORAGE_KEY, String(state.mdUnlocked));
+      localStorage.setItem(MD_LAYOUT_STORAGE_KEY, state.mdLayout);
+      localStorage.setItem(MD_MONITOR_CHARACTER_STORAGE_KEY, state.mdMonitorCharacterId);
       saveEntries();
       saveMaps();
       saveItems();
       saveLinks();
       savePlannedPurchases();
       saveMemos();
+      saveCharacters();
+      saveMdDungeons();
+      saveMdRuns();
+      saveMdMonitorImportedIds();
       applyTheme(state.theme);
       updateThemeSelection();
       updateAxisLimitInputs();
+      updateMdTabVisibility();
       refreshConfigurationViews();
       render();
-      window.alert("インポートが完了しました。");
+      window.alert("インポートしました。");
     } catch (error) {
-      window.alert("インポートに失敗しました。JSONファイルを確認してください。");
+      window.alert("インポートに失敗しました。バックアップファイルを確認してください。");
     }
   });
   reader.readAsText(file);
 }
 
 function resetAllAppData() {
-  const firstConfirm = window.confirm(
-    "pROfitiaに保存されている全データを削除します。\nこの操作は元に戻せません。先にエクスポートしておくことを推奨します。\n続行しますか？",
-  );
+  const firstConfirm = window.confirm("このアプリの全データを初期化します。続行しますか？");
   if (!firstConfirm) return;
 
-  const typed = window.prompt("最終確認です。削除する場合は「削除」と入力してください。");
-  if (typed !== "削除") return;
+  const typed = window.prompt("確認のため「リセット」と入力してください");
+  if (typed !== "リセット") return;
 
   APP_STORAGE_KEYS.forEach((key) => localStorage.removeItem(key));
-  window.alert("全データを削除しました。画面を再読み込みします。");
+  window.alert("初期化しました。ページを再読込します。");
   window.location.reload();
 }
 
@@ -2256,7 +2749,7 @@ function renderMapBars(entries) {
   const totals = new Map();
 
   for (const entry of entries) {
-    const label = entry.item || entry.map || entry.category || "未設定項目";
+    const label = entry.item || entry.map || entry.category || "項目未設定";
     const current = totals.get(label) || { income: 0, expense: 0, net: 0, count: 0 };
     if (entry.type === "income") {
       current.income += entry.amount;
@@ -2288,7 +2781,7 @@ function renderMapBars(entries) {
     ${tradeSummarySortHeader("income", "収入")}
     ${tradeSummarySortHeader("expense", "支出")}
     ${tradeSummarySortHeader("net", "収支")}
-    <span>収支バー</span>
+    <span>収支(%)</span>
   `;
   elements.categoryBars.append(header);
 
@@ -2301,7 +2794,7 @@ function renderMapBars(entries) {
       <span class="bar-amount income-text">${yen.format(income)}</span>
       <span class="bar-amount expense-text">${yen.format(expense)}</span>
       <span class="bar-amount ${net < 0 ? "expense-text" : "income-text"}">${formatSignedYen(net)}</span>
-      <div class="bar-track net-bar-track" aria-label="収支バー">
+      <div class="bar-track net-bar-track" aria-label="収支">
         <div class="bar-zero-line"></div>
         <div class="bar-fill ${net < 0 ? "negative" : ""}" style="width: ${(Math.abs(net) / maxAmount) * 50}%; ${net < 0 ? "right: 50%;" : "left: 50%;"}"></div>
       </div>
@@ -2426,6 +2919,1002 @@ function renderItemList() {
   elements.itemList.append(table);
 }
 
+function addCharacter() {
+  const name = elements.characterName.value.trim();
+  if (!name || state.characters.some((character) => character.name === name)) return;
+  state.characters.push({
+    id: crypto.randomUUID(),
+    name,
+    job: elements.characterJob.value.trim(),
+    level: parseLevelValue(elements.characterLevel.value),
+    icon: state.pendingCharacterIcon,
+    createdAt: new Date().toISOString(),
+  });
+  elements.characterName.value = "";
+  elements.characterJob.value = "";
+  elements.characterLevel.value = "";
+  elements.characterIcon.value = "";
+  state.pendingCharacterIcon = "";
+  updateCharacterIconStatus();
+  saveCharacters();
+  refreshConfigurationViews();
+  renderMdManagement();
+}
+
+function submitCharacterOnEnter(event) {
+  if (event.key !== "Enter") return;
+  event.preventDefault();
+  addCharacter();
+}
+
+function parseLevelValue(value) {
+  const normalized = String(value || "")
+    .replace(/[０-９]/g, (char) => String.fromCharCode(char.charCodeAt(0) - 0xfee0))
+    .replace(/[^\d]/g, "");
+  const level = Number(normalized || 0);
+  if (!Number.isFinite(level)) return 0;
+  return Math.max(0, Math.floor(level));
+}
+
+function formatLevel(level) {
+  const value = Number(level || 0);
+  return value > 0 ? String(value) : "-";
+}
+
+function canCharacterEnterMd(character, md) {
+  const requiredLevel = Number(md?.conditionLevel || 0);
+  if (!requiredLevel) return true;
+  return Number(character?.level || 0) >= requiredLevel;
+}
+
+function deleteCharacter(id) {
+  state.characters = state.characters.filter((character) => character.id !== id);
+  saveCharacters();
+  refreshConfigurationViews();
+  renderMdManagement();
+}
+
+function renderCharacterList() {
+  elements.characterList.replaceChildren();
+  if (state.characters.length === 0) {
+    elements.characterList.textContent = "登録済みキャラがありません";
+    return;
+  }
+
+  for (const character of state.characters) {
+    const row = document.createElement("div");
+    row.className = "character-master-row";
+    row.dataset.id = character.id;
+    row.innerHTML = `
+      <span class="character-icon">${character.icon ? `<img src="${escapeHTML(character.icon)}" alt="" />` : escapeHTML(character.name.slice(0, 1))}</span>
+      <strong>${escapeHTML(character.name)}</strong>
+      <span>${escapeHTML(character.job || "未設定")} / Lv.${formatLevel(character.level)}</span>
+      <button class="character-level-up-button" type="button"
+        data-id="${escapeHTML(character.id)}"
+        aria-label="${escapeHTML(character.name)}のレベルを1上げる"
+        title="レベルを1上げる">Lv+1</button>
+    `;
+    elements.characterList.append(row);
+  }
+}
+
+function levelUpCharacter(id) {
+  const character = state.characters.find((candidate) => candidate.id === id);
+  if (!character) return;
+  character.level = parseLevelValue(character.level) + 1;
+  saveCharacters();
+  renderCharacterList();
+  renderMdManagement();
+}
+
+function addMdDungeon() {
+  const name = elements.mdName.value.trim();
+  const idName = elements.mdIdName.value.trim();
+  const resetType = normalizeMdResetType(elements.mdResetType.value);
+  const conditionLevel = parseLevelValue(elements.mdConditionLevel.value);
+  if (!name) return;
+  if (state.mdDungeons.some((md) => md.name === name || (idName && md.idName === idName))) return;
+  state.mdDungeons.push({
+    id: crypto.randomUUID(),
+    name,
+    idName,
+    resetType,
+    periodLimit: mdPeriodLimit({ resetType }),
+    conditionLevel,
+    createdAt: new Date().toISOString(),
+  });
+  elements.mdName.value = "";
+  elements.mdIdName.value = "";
+  elements.mdConditionLevel.value = "";
+  elements.mdResetType.value = "daily";
+  saveMdDungeons();
+  refreshConfigurationViews();
+  renderMdManagement();
+}
+
+function submitMdOnEnter(event) {
+  if (event.key !== "Enter") return;
+  event.preventDefault();
+  addMdDungeon();
+}
+
+function deleteMdDungeon(id) {
+  state.mdDungeons = state.mdDungeons.filter((md) => md.id !== id);
+  saveMdDungeons();
+  refreshConfigurationViews();
+  renderMdManagement();
+  renderSummaryViews();
+}
+
+function renderMdList() {
+  elements.mdList.replaceChildren();
+  if (state.mdDungeons.length === 0) {
+    elements.mdList.textContent = "MD未登録";
+    return;
+  }
+
+  for (const md of state.mdDungeons) {
+    const row = document.createElement("div");
+    row.className = "md-master-row";
+    row.classList.toggle("is-hidden-md", Boolean(md.hiddenFromManagement));
+    row.dataset.id = md.id;
+    row.innerHTML = `
+      <strong>${escapeHTML(md.name)}</strong>
+      <span>${escapeHTML(md.idName || "-")}</span>
+      <span>${escapeHTML(mdResetLabel(md))} / Lv.${formatLevel(md.conditionLevel)}</span>
+      <button class="md-visibility-button ${md.hiddenFromManagement ? "is-hidden" : ""}" type="button"
+        data-id="${escapeHTML(md.id)}"
+        aria-label="${md.hiddenFromManagement ? "MD管理に表示" : "MD管理で非表示"}"
+        title="${md.hiddenFromManagement ? "MD管理に表示" : "MD管理で非表示"}">
+        <span class="md-eye-icon" aria-hidden="true"></span>
+      </button>
+    `;
+    elements.mdList.append(row);
+  }
+}
+
+function toggleMdDungeonVisibility(id, confirmAction = false) {
+  const md = state.mdDungeons.find((candidate) => candidate.id === id);
+  if (!md) return;
+  const nextHidden = !md.hiddenFromManagement;
+  if (confirmAction) {
+    const message = nextHidden
+      ? `${md.name}をMD管理で非表示にします。よろしいですか？`
+      : `${md.name}をMD管理に表示します。よろしいですか？`;
+    if (!window.confirm(message)) return;
+  }
+  md.hiddenFromManagement = nextHidden;
+  saveMdDungeons();
+  renderMdList();
+  renderMdManagement();
+}
+
+function toggleMdRunSlot(characterId, mdId, runId) {
+  if (runId) {
+    const run = state.mdRuns.find((candidate) => candidate.id === runId);
+    if (!run) return;
+    const linkedEntries = mdEntriesForRun(run);
+    if (linkedEntries.length > 0) {
+      const confirmed = window.confirm("このMD実行を解除すると紐づく明細が削除されます。よろしいですか？");
+      if (!confirmed) return;
+      const linkedEntryIds = new Set(linkedEntries.map((entry) => entry.id));
+      state.entries = state.entries.filter((entry) => !linkedEntryIds.has(entry.id));
+      saveEntries();
+    }
+    state.mdRuns = state.mdRuns.filter((candidate) => candidate.id !== runId);
+    saveMdRuns();
+    render();
+    return;
+  }
+
+  const character = state.characters.find((row) => row.id === characterId);
+  const md = state.mdDungeons.find((row) => row.id === mdId);
+  if (!character || !md) return;
+  if (!canCharacterEnterMd(character, md)) return;
+
+  const runDate = mdRunDateForSelectedPeriod();
+  state.mdRuns.push({
+    id: crypto.randomUUID(),
+    date: dateToISO(runDate),
+    characterId: character.id,
+    characterName: character.name,
+    mdId: md.id,
+    mdName: md.name,
+    source: "manual",
+    occurredAt: runDate.toISOString(),
+    createdAt: new Date().toISOString(),
+  });
+  saveMdRuns();
+  renderMdManagement();
+}
+
+function openMdEntryModal(mdId, characterId = "", runId = "") {
+  const run = runId ? state.mdRuns.find((candidate) => candidate.id === runId) : null;
+  const initialMdId = run?.mdId || mdId;
+  if (!state.mdDungeons.some((md) => md.id === initialMdId)) return;
+  const character = characterId ? state.characters.find((candidate) => candidate.id === characterId) : null;
+  const md = state.mdDungeons.find((candidate) => candidate.id === initialMdId);
+  if (!run && character && md && !canCharacterEnterMd(character, md)) return;
+  const existingEntries = run ? mdEntriesForRun(run) : [];
+  state.mdEntryContext = {
+    mdId: initialMdId,
+    characterId: characterId || "",
+    runId: runId || "",
+    wasChecked: Boolean(runId),
+    entryIds: existingEntries.map((entry) => entry.id),
+  };
+  updateMdEntryOptions(initialMdId);
+  const defaultRunDate = mdRunDateForSelectedPeriod();
+  elements.mdEntryDate.value = run?.date || dateToISO(defaultRunDate);
+  elements.mdEntryTime.value = run ? mdRunTime(run) : timeFromDate(defaultRunDate);
+  elements.mdEntryDuration.value = run?.durationMinutes ? formatQuantity(run.durationMinutes) : defaultMdDurationMinutes();
+  elements.mdEntryLines.replaceChildren();
+  if (existingEntries.length > 0) {
+    existingEntries.forEach((entry) => addMdEntryLine(entry));
+  } else {
+    addMdEntryLine();
+  }
+  elements.mdEntryModal.classList.remove("hidden");
+  window.requestAnimationFrame(() => elements.mdEntryLines.querySelector(".md-entry-line-item")?.focus());
+}
+
+function mdEntriesForRun(run) {
+  const direct = state.entries.filter((entry) => entry.mdRunId === run.id);
+  if (direct.length > 0) return direct.sort(compareEntriesOldestFirst);
+
+  const runTime = mdRunTime(run);
+  const fallback = state.entries.filter((entry) => {
+    if (entry.mdId !== run.mdId || entry.date !== run.date) return false;
+    return !runTime || (entry.time || "00:00") === runTime;
+  });
+  return fallback.sort(compareEntriesOldestFirst);
+}
+
+function mdRunTime(run) {
+  return timeFromDate(mdRunDateTime(run));
+}
+
+function compareEntriesOldestFirst(a, b) {
+  return entryDateTime(a) - entryDateTime(b) || entryOrderValue(a) - entryOrderValue(b);
+}
+
+function closeMdEntryModal(force = false) {
+  if (!force && hasMdEntryDraft()) {
+    const confirmed = window.confirm("入力中のMD明細がある場合、保存せずに閉じますか？");
+    if (!confirmed) return;
+  }
+  elements.mdEntryModal.classList.add("hidden");
+  state.mdEntryContext = null;
+}
+
+function hasMdEntryDraft() {
+  if (!elements.mdEntryModal || elements.mdEntryModal.classList.contains("hidden")) return false;
+  return [...elements.mdEntryLines.querySelectorAll(".md-entry-line")].some((line) => {
+    return Boolean(
+      line.querySelector(".md-entry-line-item").value.trim()
+      || line.querySelector(".md-entry-line-price").value.trim()
+      || line.querySelector(".md-entry-line-amount").value.trim(),
+    );
+  });
+}
+
+function defaultMdDurationMinutes() {
+  const elapsedMs = mdElapsedMilliseconds();
+  if (!Number.isFinite(elapsedMs)) return "";
+  return String(Math.max(0, Math.round(elapsedMs / 60000)));
+}
+
+function mdElapsedMilliseconds() {
+  if (state.mdStartAt) {
+    const startedAt = new Date(state.mdStartAt);
+    const startedTime = startedAt.getTime();
+    if (Number.isFinite(startedTime)) return Date.now() - startedTime;
+  }
+  if (!state.mdStartTime) return Number.NaN;
+  const [startHour, startMinute] = state.mdStartTime.split(":").map(Number);
+  if (!Number.isFinite(startHour) || !Number.isFinite(startMinute)) return Number.NaN;
+  const now = new Date();
+  const start = new Date(now);
+  start.setHours(startHour, startMinute, 0, 0);
+  if (start > now) start.setDate(start.getDate() - 1);
+  return now - start;
+}
+
+function updateMdElapsedTime() {
+  if (!elements.mdElapsedTime) return;
+  const elapsedMs = mdElapsedMilliseconds();
+  if (!Number.isFinite(elapsedMs)) {
+    elements.mdElapsedTime.textContent = "経過 --分";
+    return;
+  }
+  const totalSeconds = Math.max(0, Math.floor(elapsedMs / 1000));
+  const minutes = Math.floor(totalSeconds / 60);
+  const seconds = totalSeconds % 60;
+  elements.mdElapsedTime.textContent = `経過 ${minutes}分${String(seconds).padStart(2, "0")}秒`;
+}
+
+function updateMdEntryOptions(selectedMdId = "") {
+  setSelectOptionsWithBlank(
+    elements.mdEntryMd,
+    state.mdDungeons.map((md) => ({ value: md.id, label: md.name })),
+    "MDを選択",
+  );
+  if (selectedMdId && state.mdDungeons.some((md) => md.id === selectedMdId)) elements.mdEntryMd.value = selectedMdId;
+}
+
+function addMdEntryLine(row = {}) {
+  const line = elements.mdEntryLineTemplate.content.firstElementChild.cloneNode(true);
+  line.dataset.entryId = row.id || "";
+  line.querySelector(".md-entry-line-type").value = row.type || "income";
+  line.querySelector(".md-entry-line-item").value = row.item || "";
+  line.querySelector(".md-entry-line-price").value = row.unitPrice ? formatAmount(row.unitPrice) : "";
+  line.querySelector(".md-entry-line-quantity").value = row.quantity ? formatQuantity(row.quantity) : "1";
+  updateMdEntryLineAmount(line);
+  updateMdEntryLineAccent(line);
+  elements.mdEntryLines.append(line);
+}
+
+function updateMdEntryLineAccent(line) {
+  if (!line) return;
+  const type = line.querySelector(".md-entry-line-type").value;
+  line.classList.toggle("expense-line", type === "expense");
+  line.classList.toggle("income-line", type !== "expense");
+}
+
+function updateMdEntryLineAmount(line) {
+  if (!line) return;
+  const priceInput = line.querySelector(".md-entry-line-price");
+  if (!priceInput.value.trim()) {
+    line.querySelector(".md-entry-line-amount").value = "";
+    return;
+  }
+  const quantity = parseQuantityInput(line.querySelector(".md-entry-line-quantity").value);
+  const unitPrice = parseAmount(priceInput.value);
+  line.querySelector(".md-entry-line-amount").value = quantity > 0 && unitPrice >= 0 ? formatAmount(Math.round(quantity * unitPrice)) : "";
+}
+
+function saveMdEntry() {
+  const md = state.mdDungeons.find((candidate) => candidate.id === elements.mdEntryMd.value);
+  if (!md) return;
+  if (!validateNotFutureDate(elements.mdEntryDate.value)) return;
+  if (!confirmDistantYear(elements.mdEntryDate.value)) return;
+
+  const rows = mdEntryLineRows();
+  if (rows.length === 0) return;
+
+  const baseEntry = {
+    date: elements.mdEntryDate.value,
+    time: elements.mdEntryTime.value || currentTime(),
+  };
+  const mdRunId = upsertMdRunFromMdEntry(baseEntry, md);
+  const savedIds = [];
+  const entries = rows.map((row) => {
+    const entry = row.entryId
+      ? state.entries.find((candidate) => candidate.id === row.entryId) || { id: row.entryId, createdAt: Date.now() }
+      : { id: crypto.randomUUID(), createdAt: Date.now() };
+    entry.type = row.type;
+    entry.date = baseEntry.date;
+    entry.time = baseEntry.time;
+    entry.amount = row.amount;
+    entry.map = "";
+    entry.item = row.item;
+    entry.mdId = md.id;
+    entry.mdName = md.name;
+    entry.mdRunId = mdRunId;
+    entry.quantity = row.quantity || 1;
+    entry.unitPrice = row.unitPrice;
+    entry.tags = normalizeTags(entry.tags);
+    savedIds.push(entry.id);
+    if (!state.entries.some((candidate) => candidate.id === entry.id)) state.entries.push(entry);
+    return entry;
+  });
+
+  const oldIds = new Set(state.mdEntryContext?.entryIds || []);
+  state.entries = state.entries.filter((entry) => !oldIds.has(entry.id) || savedIds.includes(entry.id));
+  saveEntries();
+  state.periodStart = rangeKey(getRangeStart(entryDateTime(entries[0])));
+  state.selectedSummaryKey = state.periodStart;
+  updatePeriodLabel();
+  closeMdEntryModal(true);
+  render();
+}
+
+function mdEntryLineRows() {
+  const rows = [];
+  for (const line of elements.mdEntryLines.querySelectorAll(".md-entry-line")) {
+    updateMdEntryLineAmount(line);
+    const item = line.querySelector(".md-entry-line-item").value.trim();
+    const unitPrice = parseAmount(line.querySelector(".md-entry-line-price").value);
+    const quantity = parseQuantityInput(line.querySelector(".md-entry-line-quantity").value);
+    const amount = parseAmount(line.querySelector(".md-entry-line-amount").value);
+    if (!item) continue;
+    if (!validateEntryNumbers(unitPrice, quantity, amount)) return [];
+    rows.push({
+      entryId: line.dataset.entryId || "",
+      type: line.querySelector(".md-entry-line-type").value,
+      item,
+      unitPrice,
+      quantity,
+      amount,
+    });
+  }
+  return rows;
+}
+
+function upsertMdRunFromMdEntry(entry, md) {
+  const context = state.mdEntryContext;
+  const durationMinutes = parseQuantityInput(elements.mdEntryDuration.value) || 0;
+  if (context?.runId && context.mdId === md.id) {
+    const run = state.mdRuns.find((candidate) => candidate.id === context.runId);
+    if (run) {
+      run.date = entry.date;
+      run.mdId = md.id;
+      run.mdName = md.name;
+      run.occurredAt = mdEntryOccurredAt(entry.date, entry.time);
+      run.durationMinutes = durationMinutes;
+      saveMdRuns();
+      return run.id;
+    }
+    return "";
+  }
+  if (!context?.characterId || (context.wasChecked && context.mdId === md.id)) return "";
+  const character = state.characters.find((candidate) => candidate.id === context.characterId);
+  if (!character) return "";
+
+  const occurredAt = mdEntryOccurredAt(entry.date, entry.time);
+  const referenceDate = new Date(occurredAt);
+  if (mdRunCountInPeriod(character.id, md, referenceDate) >= mdPeriodLimit(md)) return "";
+
+  const run = {
+    id: crypto.randomUUID(),
+    date: entry.date,
+    characterId: character.id,
+    characterName: character.name,
+    mdId: md.id,
+    mdName: md.name,
+    source: "manual",
+    durationMinutes,
+    occurredAt,
+    createdAt: new Date().toISOString(),
+  };
+  state.mdRuns.push(run);
+  saveMdRuns();
+  return run.id;
+}
+
+function mdEntryOccurredAt(date, time) {
+  const value = new Date(`${date}T${time || "00:00"}:00`);
+  return Number.isNaN(value.getTime()) ? new Date().toISOString() : value.toISOString();
+}
+
+function renderMdManagement() {
+  updateMdLayoutToggle();
+  updateMdMonitorCharacterOptions();
+  renderMdWeekGrid();
+}
+
+function updateMdMonitorCharacterOptions() {
+  if (!elements.mdMonitorCharacter) return;
+  const current = state.mdMonitorCharacterId;
+  elements.mdMonitorCharacter.replaceChildren();
+  const emptyOption = document.createElement("option");
+  emptyOption.value = "";
+  emptyOption.textContent = "選択してください";
+  elements.mdMonitorCharacter.append(emptyOption);
+  for (const character of state.characters) {
+    const option = document.createElement("option");
+    option.value = character.id;
+    option.textContent = character.name;
+    elements.mdMonitorCharacter.append(option);
+  }
+  if (state.characters.some((character) => character.id === current)) {
+    elements.mdMonitorCharacter.value = current;
+  } else {
+    state.mdMonitorCharacterId = "";
+    localStorage.removeItem(MD_MONITOR_CHARACTER_STORAGE_KEY);
+  }
+}
+
+function toggleMdMonitorConnection() {
+  if (state.mdMonitorConnected) {
+    stopMdMonitorPolling();
+    updateMdMonitorStatus("取得しました");
+    return;
+  }
+  startMdMonitorPolling();
+}
+
+function startMdMonitorPolling() {
+  state.mdMonitorConnected = true;
+  elements.mdMonitorConnect.textContent = "監視中停止";
+  fetchMdMonitorEvents();
+  state.mdMonitorTimer = window.setInterval(fetchMdMonitorEvents, 3000);
+}
+
+function stopMdMonitorPolling() {
+  state.mdMonitorConnected = false;
+  elements.mdMonitorConnect.textContent = "監視開始";
+  if (state.mdMonitorTimer) window.clearInterval(state.mdMonitorTimer);
+  state.mdMonitorTimer = null;
+}
+
+async function fetchMdMonitorEvents() {
+  try {
+    const response = await fetch("http://127.0.0.1:18765/events", { cache: "no-store" });
+    if (!response.ok) throw new Error(`HTTP ${response.status}`);
+    const data = await response.json();
+    const imported = importMdMonitorEvents(Array.isArray(data.events) ? data.events : []);
+    updateMdMonitorStatus(imported > 0 ? `${imported}件を取得` : formatMdMonitorStatus(data.status));
+  } catch (error) {
+    updateMdMonitorStatus("監視接続に失敗しました");
+    if (state.mdMonitorConnected) stopMdMonitorPolling();
+  }
+}
+
+function formatMdMonitorStatus(status) {
+  if (!status) return "未接続";
+  if (status.lastError) return `監視エラー: ${status.lastError}`;
+  if (status.detectedMdIdName) {
+    return `監視: ${status.detectedMdIdName} を検出`;
+  }
+  const count = Number(status.candidateCount || 0);
+  if (count > 0) {
+    const candidates = Array.isArray(status.candidates) ? status.candidates : [];
+    const preview = candidates
+      .map((candidate) => String(candidate.text || "").trim())
+      .filter(Boolean)
+      .slice(0, 1)
+      .join(" / ");
+    return preview ? `監視: MD候補 ${count}件 ${preview}` : "監視中";
+  }
+  if (status.lastScanAt) return "監視中";
+  return "監視";
+}
+
+function importMdMonitorEvents(events) {
+  let imported = 0;
+  for (const event of events) {
+    const eventId = String(event.id || "");
+    if (!eventId || state.mdMonitorImportedIds.has(eventId)) continue;
+    const eventMdIdName = normalizeMdIdNameForMatch(event.mdIdName);
+    const md = state.mdDungeons.find((candidate) => normalizeMdIdNameForMatch(candidate.idName) === eventMdIdName);
+    const character = resolveMonitorCharacter(event);
+    if (!md || !character) continue;
+    const date = monitorEventDate(event);
+    const occurredAt = event.detectedAt || new Date().toISOString();
+    const occurredDate = new Date(occurredAt);
+    const referenceDate = Number.isNaN(occurredDate.getTime()) ? new Date() : occurredDate;
+    state.mdMonitorImportedIds.add(eventId);
+    if (!mdRunExists(character.id, md.id, date) && mdRunCountInPeriod(character.id, md, referenceDate) < mdPeriodLimit(md)) {
+      state.mdRuns.push({
+        id: crypto.randomUUID(),
+        date,
+        characterId: character.id,
+        characterName: character.name,
+        mdId: md.id,
+        mdName: md.name,
+        source: "auto",
+        monitorEventId: eventId,
+        occurredAt,
+        createdAt: new Date().toISOString(),
+      });
+      imported += 1;
+    }
+  }
+  if (imported > 0) {
+    saveMdRuns();
+    renderMdManagement();
+  }
+  saveMdMonitorImportedIds();
+  return imported;
+}
+
+function normalizeMdIdNameForMatch(value) {
+  return String(value || "").trim().replace(/\s+/g, " ").toLowerCase();
+}
+
+function resolveMonitorCharacter(event) {
+  const detectedName = String(event.characterName || "").trim();
+  if (detectedName) {
+    const matched = state.characters.find((character) => character.name === detectedName);
+    if (matched) return matched;
+  }
+  return state.characters.find((character) => character.id === state.mdMonitorCharacterId) || null;
+}
+
+function monitorEventDate(event) {
+  const detectedAt = event.detectedAt ? new Date(event.detectedAt) : new Date();
+  if (Number.isNaN(detectedAt.getTime())) return todayISO();
+  return `${detectedAt.getFullYear()}-${String(detectedAt.getMonth() + 1).padStart(2, "0")}-${String(detectedAt.getDate()).padStart(2, "0")}`;
+}
+
+function mdRunExists(characterId, mdId, date) {
+  return state.mdRuns.some((run) => run.characterId === characterId && run.mdId === mdId && run.date === date);
+}
+
+function mdRunCountInPeriod(characterId, md, referenceDate = new Date()) {
+  const period = mdResetPeriod(md, referenceDate);
+  return state.mdRuns.filter((run) => {
+    if (run.characterId !== characterId || run.mdId !== md.id) return false;
+    const time = mdRunDateTime(run);
+    return time >= period.start && time < period.end;
+  }).length;
+}
+
+function updateMdMonitorStatus(message) {
+  elements.mdMonitorStatus.textContent = message;
+}
+
+function renderMdWeekGrid() {
+  elements.mdWeekGrid.replaceChildren();
+  const visibleDungeons = visibleMdDungeons();
+  if (state.characters.length === 0 || state.mdDungeons.length === 0) {
+    elements.mdWeekGrid.textContent = "キャラクターとMDを設定タブで登録してください";
+    return;
+  }
+  if (visibleDungeons.length === 0) {
+    elements.mdWeekGrid.textContent = "MD管理に表示するMDがありません";
+    return;
+  }
+
+  const displayPeriod = mdManagementDisplayPeriod();
+  const runMap = new Map();
+  for (const run of state.mdRuns) {
+    const key = `${run.characterId}:${run.mdId}`;
+    const rows = runMap.get(key) || [];
+    rows.push(run);
+    runMap.set(key, rows);
+  }
+
+  const table = document.createElement("div");
+  table.className = "md-week-table";
+  const isDungeonRows = state.mdLayout === "dungeonRows";
+  table.classList.toggle("dungeon-rows", isDungeonRows);
+  table.classList.toggle("character-rows", !isDungeonRows);
+
+  if (isDungeonRows) {
+    table.style.setProperty("--md-data-column-count", String(state.characters.length));
+    table.append(mdWeekCell("MD", "md-week-head md-sticky-cell"));
+    for (const character of state.characters) table.append(makeMdDraggableHeader(mdCharacterHeaderCell(character), "character", character.id));
+
+    for (const md of visibleDungeons) {
+      table.append(makeMdDraggableHeader(mdDungeonCell(md, true), "md", md.id));
+      for (const character of state.characters) {
+        const runs = mdRunsForCell(runMap, character.id, md.id, displayPeriod);
+        table.append(mdRunSlotCell(character, md, runs));
+      }
+    }
+  } else {
+    table.style.setProperty("--md-data-column-count", String(visibleDungeons.length));
+    table.style.setProperty("--md-data-column-width", `${mdColumnWidthForCharacterRows(visibleDungeons)}px`);
+    table.append(mdWeekCell("キャラクター", "md-week-head md-sticky-cell"));
+    for (const md of visibleDungeons) table.append(makeMdDraggableHeader(mdDungeonHeaderCell(md), "md", md.id));
+
+    for (const character of state.characters) {
+      table.append(makeMdDraggableHeader(mdCharacterCell(character, true), "character", character.id));
+      for (const md of visibleDungeons) {
+        const runs = mdRunsForCell(runMap, character.id, md.id, displayPeriod);
+        table.append(mdRunSlotCell(character, md, runs));
+      }
+    }
+  }
+  elements.mdWeekGrid.append(table);
+}
+
+function visibleMdDungeons() {
+  return state.mdDungeons.filter((md) => !md.hiddenFromManagement);
+}
+
+function mdColumnWidthForCharacterRows(dungeons) {
+  const widestLineUnits = dungeons.reduce((max, md) => {
+    return Math.max(max, ...wrapByDisplayUnits(md.name, 10).map(displayWidthUnits));
+  }, 0);
+  return Math.max(116, Math.ceil(Math.min(10, widestLineUnits) * 7 + 58));
+}
+
+function displayWidthUnits(value) {
+  return [...String(value || "")].reduce((total, char) => total + (char.charCodeAt(0) > 0xff ? 2 : 1), 0);
+}
+
+function wrapByDisplayUnits(value, maxUnits) {
+  const lines = [];
+  let line = "";
+  let units = 0;
+  for (const char of String(value || "")) {
+    const charUnits = char.charCodeAt(0) > 0xff ? 2 : 1;
+    if (line && units + charUnits > maxUnits) {
+      lines.push(line);
+      line = "";
+      units = 0;
+    }
+    line += char;
+    units += charUnits;
+  }
+  if (line || lines.length === 0) lines.push(line);
+  return lines;
+}
+
+function mdRunsForCell(runMap, characterId, mdId, displayPeriod = mdManagementDisplayPeriod()) {
+  const md = state.mdDungeons.find((candidate) => candidate.id === mdId);
+  if (!md) return [];
+  const period = normalizeMdResetType(md.resetType) === "daily" ? displayPeriod : mdResetPeriod(md, displayPeriod.start);
+  return (runMap.get(`${characterId}:${mdId}`) || [])
+    .filter((run) => {
+      const time = mdRunDateTime(run);
+      return time >= period.start && time < period.end;
+    })
+    .sort((a, b) => mdRunDateTime(a) - mdRunDateTime(b));
+}
+
+function mdManagementDisplayPeriod() {
+  const start = parseRangeKey(state.periodStart);
+  const periodStart = state.periodMode === "week" ? start : getWeekStart(start);
+  const periodEnd = getWeekEnd(periodStart);
+  return { start: periodStart, end: new Date(periodEnd.getTime() + 60 * 1000) };
+}
+
+function mdRunDateForSelectedPeriod() {
+  const period = mdManagementDisplayPeriod();
+  const now = new Date();
+  if (now >= period.start && now < period.end) return now;
+  return new Date(period.start);
+}
+
+function timeFromDate(date) {
+  return `${String(date.getHours()).padStart(2, "0")}:${String(date.getMinutes()).padStart(2, "0")}`;
+}
+
+function mdWeekCell(text, className) {
+  const cell = document.createElement("div");
+  cell.className = `md-week-cell ${className}`;
+  cell.textContent = text;
+  return cell;
+}
+
+function makeMdDraggableHeader(cell, type, id) {
+  cell.classList.add("md-draggable-header");
+  cell.draggable = true;
+  cell.dataset.dragType = type;
+  cell.dataset.dragId = id;
+  cell.title = "ドラッグで並び替え";
+  return cell;
+}
+
+function handleMdHeaderDragStart(event) {
+  if (event.target.closest("button")) {
+    event.preventDefault();
+    return;
+  }
+  const header = event.target.closest(".md-draggable-header");
+  if (!header) return;
+  state.mdDrag = {
+    type: header.dataset.dragType,
+    id: header.dataset.dragId,
+  };
+  header.classList.add("dragging");
+  event.dataTransfer.effectAllowed = "move";
+  event.dataTransfer.setData("text/plain", `${state.mdDrag.type}:${state.mdDrag.id}`);
+}
+
+function handleMdHeaderDragOver(event) {
+  const target = event.target.closest(".md-draggable-header");
+  if (!target || !state.mdDrag || target.dataset.dragType !== state.mdDrag.type) return;
+  event.preventDefault();
+  event.dataTransfer.dropEffect = "move";
+  clearMdHeaderDropTargets();
+  if (target.dataset.dragId !== state.mdDrag.id) target.classList.add("drop-target");
+}
+
+function handleMdHeaderDragLeave(event) {
+  const target = event.target.closest(".md-draggable-header");
+  if (!target || target.contains(event.relatedTarget)) return;
+  target.classList.remove("drop-target");
+}
+
+function handleMdHeaderDrop(event) {
+  const target = event.target.closest(".md-draggable-header");
+  if (!target || !state.mdDrag || target.dataset.dragType !== state.mdDrag.type) return;
+  event.preventDefault();
+  reorderMdHeader(state.mdDrag.type, state.mdDrag.id, target.dataset.dragId);
+  handleMdHeaderDragEnd();
+}
+
+function handleMdHeaderDragEnd() {
+  state.mdDrag = null;
+  elements.mdWeekGrid.querySelectorAll(".md-draggable-header.dragging").forEach((cell) => cell.classList.remove("dragging"));
+  clearMdHeaderDropTargets();
+}
+
+function clearMdHeaderDropTargets() {
+  elements.mdWeekGrid.querySelectorAll(".md-draggable-header.drop-target").forEach((cell) => cell.classList.remove("drop-target"));
+}
+
+function reorderMdHeader(type, sourceId, targetId) {
+  if (!sourceId || !targetId || sourceId === targetId) return;
+  const rows = type === "character" ? state.characters : state.mdDungeons;
+  const sourceIndex = rows.findIndex((row) => row.id === sourceId);
+  const targetIndex = rows.findIndex((row) => row.id === targetId);
+  if (sourceIndex < 0 || targetIndex < 0) return;
+  const [moved] = rows.splice(sourceIndex, 1);
+  rows.splice(targetIndex, 0, moved);
+  if (type === "character") {
+    saveCharacters();
+    renderCharacterList();
+  } else {
+    saveMdDungeons();
+    renderMdList();
+    renderSummaryViews();
+  }
+  renderMdWeekGrid();
+}
+
+function mdRunSlotCell(character, md, runs) {
+  const cell = document.createElement("div");
+  cell.className = "md-week-cell md-week-slot-cell";
+  const isLocked = !canCharacterEnterMd(character, md);
+  const limit = mdPeriodLimit(md);
+  cell.classList.toggle("completed", runs.length >= limit);
+  cell.classList.toggle("incomplete", runs.length < limit);
+  cell.classList.toggle("level-locked", isLocked);
+  const slots = runs.slice(0, limit);
+  while (slots.length < limit) slots.push(null);
+  cell.innerHTML = `
+    <div class="md-slot-summary">${isLocked ? `Lv.${formatLevel(md.conditionLevel)}必要` : `${runs.length}/${limit}`}</div>
+    <div class="md-run-slots">
+      ${slots.map((run) => `
+        <button class="md-run-slot ${run ? "checked" : ""}" type="button"
+          data-character-id="${escapeHTML(character.id)}"
+          data-md-id="${escapeHTML(md.id)}"
+          data-run-id="${run ? escapeHTML(run.id) : ""}"
+          ${isLocked ? "disabled" : ""}
+          title="${isLocked ? `条件レベル未達: Lv.${formatLevel(md.conditionLevel)}必要` : `左クリック: 周回${run ? "取消" : "登録"} / 右クリック: MD明細追加`}"
+          aria-label="${escapeHTML(character.name)} ${escapeHTML(md.name)} ${isLocked ? "条件レベル未達" : run ? "取り消し" : "登録"}">
+          <span class="md-run-orb" aria-hidden="true"></span>
+          <small>${run ? escapeHTML(formatDate(run.date)) : ""}</small>
+        </button>
+      `).join("")}
+    </div>
+  `;
+  return cell;
+}
+
+function mdCharacterCell(character, sticky = false) {
+  const cell = document.createElement("div");
+  cell.className = `md-week-cell md-week-character${sticky ? " md-sticky-cell" : ""}`;
+  cell.innerHTML = `
+    <span class="character-icon">${character.icon ? `<img src="${escapeHTML(character.icon)}" alt="" />` : escapeHTML(character.name.slice(0, 1))}</span>
+    <strong>${escapeHTML(character.name)}</strong>
+  `;
+  return cell;
+}
+
+function mdCharacterHeaderCell(character) {
+  const cell = mdCharacterCell(character);
+  cell.classList.add("md-week-head", "md-week-character-head");
+  return cell;
+}
+
+function mdDungeonCell(md, sticky = false) {
+  const cell = document.createElement("div");
+  cell.className = `md-week-cell md-week-dungeon${sticky ? " md-sticky-cell" : ""}`;
+  cell.innerHTML = `
+    <div class="md-dungeon-title-row">
+      <strong>${escapeHTML(md.name)}</strong>
+      <button class="md-visibility-button md-week-hide-button" type="button"
+        data-id="${escapeHTML(md.id)}"
+        aria-label="MD管理で非表示"
+        title="MD管理で非表示">
+        <span class="md-eye-icon" aria-hidden="true"></span>
+      </button>
+    </div>
+    <small>${escapeHTML(md.idName || "")}</small>
+    <small>${escapeHTML(mdResetLabel(md))}</small>
+  `;
+  return cell;
+}
+
+function mdDungeonHeaderCell(md) {
+  const cell = document.createElement("div");
+  cell.className = "md-week-cell md-week-head md-week-dungeon-head";
+  cell.innerHTML = `
+    <div class="md-dungeon-title-row">
+      <strong>${wrapByDisplayUnits(md.name, 10).map(escapeHTML).join("<br>")}</strong>
+      <button class="md-visibility-button md-week-hide-button" type="button"
+        data-id="${escapeHTML(md.id)}"
+        aria-label="MD管理で非表示"
+        title="MD管理で非表示">
+        <span class="md-eye-icon" aria-hidden="true"></span>
+      </button>
+    </div>
+  `;
+  return cell;
+}
+
+function updateMdLayoutToggle() {
+  elements.mdLayoutButtons.forEach((button) => {
+    button.classList.toggle("active", button.dataset.mdLayout === state.mdLayout);
+  });
+}
+
+function mdResetPeriod(md, now = new Date()) {
+  if (normalizeMdResetType(md.resetType) === "daily") {
+    const start = new Date(now);
+    start.setHours(0, 0, 0, 0);
+    const end = new Date(start);
+    end.setDate(end.getDate() + 1);
+    return { start, end };
+  }
+  const start = getWeekStart(now);
+  const end = new Date(start);
+  end.setDate(end.getDate() + 7);
+  return { start, end };
+}
+
+function mdRunDateTime(run) {
+  const source = run.occurredAt || `${run.date}T00:00:00`;
+  const date = new Date(source);
+  return Number.isNaN(date.getTime()) ? new Date(`${run.date}T00:00:00`) : date;
+}
+
+function normalizeMdResetType(value) {
+  return Object.prototype.hasOwnProperty.call(MD_RESET_TYPES, value) ? value : "weekly1";
+}
+
+function mdPeriodLimit(md) {
+  const type = normalizeMdResetType(md.resetType);
+  return MD_RESET_TYPES[type].limit;
+}
+
+function mdResetLabel(md) {
+  const type = normalizeMdResetType(md.resetType);
+  return `${MD_RESET_TYPES[type].label} (${MD_RESET_TYPES[type].limit}回/週)`;
+}
+
+function addMdTagLink() {
+  const tags = getTagValues(elements.mdTagLinkTag);
+  const mdId = elements.mdTagLinkMd.value;
+  if (tags.length === 0 || !mdId) return;
+  const md = state.mdDungeons.find((row) => row.id === mdId);
+  if (!md) return;
+  let changedCount = 0;
+  const targetTagSet = new Set(tags);
+  for (const entry of state.entries) {
+    const entryTags = normalizeTags(entry.tags);
+    if (!entryTags.some((tag) => targetTagSet.has(tag))) continue;
+    entry.mdId = md.id;
+    entry.mdName = md.name;
+    changedCount += 1;
+  }
+  setTagValues(elements.mdTagLinkTag, elements.mdTagLinkTagChipList, []);
+  saveEntries();
+  refreshConfigurationViews();
+  const tagLabel = targetTagSet.size > 1 ? `${tags.join(", ")}（複数）` : tags[0];
+  window.alert(`${tagLabel} のタグを含む明細 ${changedCount}件をMD「${md.name}」へ紐づけしました。`);
+  renderSummaryViews();
+  renderItemSearchResults();
+}
+
+function submitMdTagLinkOnEnter(event) {
+  if (event.key === "Enter") {
+    event.preventDefault();
+    if (!elements.addMdTagLink.disabled) addMdTagLink();
+  }
+}
+
+function updateMdTagApplyButton() {
+  const enabled = Boolean(getTagValues(elements.mdTagLinkTag).length > 0 && elements.mdTagLinkMd.value);
+  elements.addMdTagLink.disabled = !enabled;
+}
+
+function updateMdTagLinkOptions() {
+  setSelectOptionsWithBlank(
+    elements.mdTagLinkMd,
+    state.mdDungeons.map((md) => ({ value: md.id, label: md.name })),
+    "MD未登録",
+    true,
+  );
+}
+
 function renderLinkList() {
   elements.linkList.replaceChildren();
   const map = elements.linkMap.value;
@@ -2469,6 +3958,51 @@ function renderLinkList() {
   elements.linkList.append(table);
 }
 
+function summaryFilteredEntries(entries = state.entries) {
+  const tags = getTagValues(elements.summaryTags);
+  if (tags.length === 0) return entries;
+
+  const condition = elements.summaryTagCondition.value || "includeAny";
+  return entries.filter((entry) => {
+    const entryTags = normalizeTags(entry.tags);
+    const matchCount = tags.filter((tag) => entryTags.includes(tag)).length;
+    if (condition === "includeAll") return matchCount === tags.length;
+    if (condition === "exclude") return matchCount === 0;
+    return matchCount > 0;
+  });
+}
+
+function summaryTagConditionLabel() {
+  switch (elements.summaryTagCondition.value) {
+  case "includeAll":
+      return "すべて含む";
+  case "exclude":
+      return "除外";
+  default:
+      return "いずれか含む";
+  }
+}
+
+function updateSummaryFilterStatus() {
+  const tags = getTagValues(elements.summaryTags);
+  if (tags.length === 0) {
+    elements.summaryFilterStatus.textContent = "全明細を集計中";
+    return;
+  }
+
+  const count = summaryFilteredEntries().length;
+  elements.summaryFilterStatus.textContent = `${tags.join(" ")} / ${summaryTagConditionLabel()} / ${count}件`;
+}
+
+function hasSummaryTagFilter() {
+  return getTagValues(elements.summaryTags).length > 0;
+}
+
+function currentSummaryEntries() {
+  const entries = summaryFilteredEntries();
+  return state.summaryView === "md" ? entries.filter((entry) => entry.mdId || entry.mdName) : entries;
+}
+
 function renderPeriodList() {
   elements.periodList.replaceChildren();
   const periods = buildPeriodSummaries();
@@ -2504,7 +4038,7 @@ function renderPeriodList() {
 function buildPeriodSummaries() {
   const summaries = new Map();
 
-  for (const entry of state.entries) {
+  for (const entry of currentSummaryEntries()) {
     const start = getRangeStart(entryDateTime(entry));
     const key = rangeKey(start);
     const end = getRangeEnd(start);
@@ -2525,7 +4059,7 @@ function renderSummaryDetail() {
   elements.summaryDetail.replaceChildren();
   const start = parseRangeKey(state.selectedSummaryKey);
   const end = getRangeEnd(start);
-  const entries = state.entries.filter((entry) => isEntryInPeriod(entry, start, end));
+  const entries = currentSummaryEntries().filter((entry) => isEntryInPeriod(entry, start, end));
 
   const title = document.createElement("div");
   title.className = "summary-detail-title";
@@ -2537,15 +4071,26 @@ function renderSummaryDetail() {
 
   const grid = document.createElement("div");
   grid.className = "breakdown-grid";
-  grid.append(
-    createBreakdownPanel("タグ別", aggregateByTag(entries), "タグ付きの収支データはありません"),
-    createBreakdownPanel("アイテム/項目別", aggregateByItem(entries), "アイテム/項目の収支", "数量"),
-  );
+  if (state.summaryView === "md") {
+    grid.append(
+      createMdComparisonPanel("MD別収支", aggregateByMd(entries).sort(compareAmountDescending), entries, "収支"),
+      createMdComparisonPanel("MD別 時給収支", aggregateMdHourly(entries, start, end).sort(compareAmountDescending).slice(0, 10), entries, "時給収支"),
+    );
+  } else {
+    grid.append(
+      createBreakdownPanel("タグ別収支", aggregateByTag(entries), "タグ別収支"),
+      createBreakdownPanel("アイテム/項目別収支", aggregateByItem(entries), "アイテム/項目別収支"),
+    );
+  }
   elements.summaryDetail.append(grid);
 }
 
 function renderYearChart() {
   elements.yearChart.replaceChildren();
+  if (state.summaryView === "md") {
+    renderMdComparisonChart();
+    return;
+  }
   const rows = buildTrendChartRows();
   const width = 960;
   const height = 300;
@@ -2554,7 +4099,9 @@ function renderYearChart() {
   const chartHeight = height - padding.top - padding.bottom;
   const chartTargetBalance = currentTargetBalance();
   const autoBarMax = niceCeil(Math.max(...rows.flatMap((row) => [row.income, row.expense]), 1));
-  const autoNetMax = niceCeil(Math.max(...rows.map((row) => Math.abs(row.net)), Math.abs(chartTargetBalance), 1));
+  const netAutoValues = rows.map((row) => Math.abs(row.net));
+  if (state.summaryView !== "md" && !hasSummaryTagFilter()) netAutoValues.push(Math.abs(chartTargetBalance));
+  const autoNetMax = niceCeil(Math.max(...netAutoValues, 1));
   const axisLimits = currentAxisLimits();
   const maxBarAmount = axisLimits.bar > 0 ? axisLimits.bar : autoBarMax;
   const maxNetAbs = axisLimits.net > 0 ? axisLimits.net : autoNetMax;
@@ -2601,12 +4148,12 @@ function renderYearChart() {
     .join("");
 
   const targetY = netY(chartTargetBalance);
-  const targetLine = `
+  const targetLine = state.summaryView === "md" ? "" : `
     <line class="chart-target-line" x1="${padding.left}" y1="${targetY}" x2="${width - padding.right}" y2="${targetY}"><title>目標収支 ${yen.format(chartTargetBalance)}</title></line>
-    <text class="chart-target-label" x="${width - padding.right - 6}" y="${targetY - 7}" text-anchor="end">目標 ${formatCompactAmount(chartTargetBalance)}</text>
+    <text class="chart-target-label" x="${width - padding.right - 6}" y="${targetY - 7}" text-anchor="end">目標${formatCompactAmount(chartTargetBalance)}</text>
   `;
 
-  elements.trendChartTitle.textContent = state.periodMode === "week" ? "過去12週間" : "過去12か月";
+  elements.trendChartTitle.textContent = `${state.summaryView === "md" ? "MD " : ""}${state.periodMode === "week" ? "週次12週推移" : "月次12か月推移"}`;
   elements.yearChart.innerHTML = `
     <svg class="combo-chart" viewBox="0 0 ${width} ${height}" role="img" aria-label="過去1年間の収入、支出、収支">
       ${gridLines}
@@ -2615,7 +4162,7 @@ function renderYearChart() {
       <line class="chart-axis" x1="${width - padding.right}" y1="${padding.top}" x2="${width - padding.right}" y2="${padding.top + chartHeight}"></line>
       ${bars}
       ${targetLine}
-      <polyline class="chart-net-line" points="${points}"></polyline>
+      <polyline class="chart-net-line" points="${points}" pathLength="1"></polyline>
       ${dots}
       <text class="chart-axis-title" x="${padding.left}" y="18">収入 / 支出</text>
       <text class="chart-axis-title" x="${width - padding.right}" y="18" text-anchor="end">収支</text>
@@ -2624,7 +4171,7 @@ function renderYearChart() {
       <span><i class="legend-income"></i>収入</span>
       <span><i class="legend-expense"></i>支出</span>
       <span><i class="legend-net"></i>収支</span>
-      <span><i class="legend-target"></i>目標収支</span>
+      ${state.summaryView === "md" ? "" : '<span><i class="legend-target"></i>目標収支</span>'}
     </div>
   `;
 }
@@ -2649,7 +4196,7 @@ function buildMonthlyChartRows() {
   }
 
   const byKey = new Map(months.map((month) => [month.key, month]));
-  for (const entry of state.entries) {
+  for (const entry of currentSummaryEntries()) {
     const date = entryDateTime(entry);
     const key = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}`;
     const row = byKey.get(key);
@@ -2682,7 +4229,7 @@ function buildWeeklyChartRows() {
   }
 
   const byKey = new Map(weeks.map((week) => [week.key, week]));
-  for (const entry of state.entries) {
+  for (const entry of currentSummaryEntries()) {
     const start = getWeekStart(entryDateTime(entry));
     const row = byKey.get(rangeKeyForMode(start, "week"));
     if (!row) continue;
@@ -2700,7 +4247,7 @@ function aggregateByTag(entries) {
     const signedAmount = entry.type === "income" ? entry.amount : -entry.amount;
     const tags = normalizeTags(entry.tags);
     if (tags.length === 0) {
-      addBreakdownTotal(totals, "タグ未設定", signedAmount);
+      addBreakdownTotal(totals, "無タグ", signedAmount);
       continue;
     }
     for (const tag of tags) {
@@ -2715,12 +4262,47 @@ function aggregateByTag(entries) {
 function aggregateByItem(entries) {
   const totals = new Map();
   for (const entry of entries) {
-    const label = entry.item || "未設定項目";
+    const label = entry.item || "項目未設定";
     const signedAmount = entry.type === "income" ? entry.amount : -entry.amount;
     addBreakdownTotal(totals, label, signedAmount, entryQuantity(entry));
   }
   return [...totals.entries()]
     .map(([label, value]) => ({ label, amount: value.amount, count: value.count }))
+    .sort(compareBreakdownRows);
+}
+
+function aggregateByMd(entries) {
+  const totals = new Map();
+  for (const entry of entries) {
+    const label = entryMdName(entry) || "未分類MD";
+    const signedAmount = entry.type === "income" ? entry.amount : -entry.amount;
+    addBreakdownTotal(totals, label, signedAmount);
+  }
+  return [...totals.entries()]
+    .map(([label, value]) => ({ label, amount: value.amount, count: value.count }))
+    .sort(compareBreakdownRows);
+}
+
+function aggregateMdHourly(entries, start, end) {
+  const netByMd = new Map();
+  for (const row of aggregateByMd(entries)) netByMd.set(row.label, row.amount);
+
+  const durationByMd = new Map();
+  for (const run of state.mdRuns) {
+    const time = mdRunDateTime(run);
+    if (time < start || time >= end) continue;
+    const duration = Number(run.durationMinutes || 0);
+    if (!duration) continue;
+    const label = run.mdName || mdNameById(run.mdId) || "未分類MD";
+    durationByMd.set(label, (durationByMd.get(label) || 0) + duration);
+  }
+
+  return [...netByMd.entries()]
+    .map(([label, amount]) => {
+      const hours = (durationByMd.get(label) || 0) / 60;
+      return { label, amount: hours > 0 ? Math.round(amount / hours) : 0, count: hours };
+    })
+    .filter((row) => row.count > 0)
     .sort(compareBreakdownRows);
 }
 
@@ -2848,7 +4430,7 @@ function filterEntries(entries) {
     const mapName = entry.map || entry.category || "";
     const matchesType = state.typeFilter === "all" || entry.type === state.typeFilter;
     const tags = normalizeTags(entry.tags).join(" ");
-    const text = `${tags} ${mapName} ${entry.item || ""} ${entry.amount} ${entry.quantity || ""} ${entry.unitPrice || ""}`.toLowerCase();
+    const text = `${tags} ${mapName} ${entryMdName(entry)} ${entry.item || ""} ${entry.amount} ${entry.quantity || ""} ${entry.unitPrice || ""}`.toLowerCase();
     return matchesType && text.includes(state.search);
   });
 }
@@ -2857,7 +4439,7 @@ function updateEntryMapOptions(selectedMap = "") {
   elements.entryMap.replaceChildren();
   const empty = document.createElement("option");
   empty.value = "";
-  empty.textContent = "グループなし";
+  empty.textContent = "カテゴリを選択";
   elements.entryMap.append(empty);
 
   for (const map of state.maps) {
@@ -2869,6 +4451,23 @@ function updateEntryMapOptions(selectedMap = "") {
 
   elements.entryMap.value = "";
   elements.entryMap.dataset.previousValue = elements.entryMap.value;
+}
+
+function updateEntryMdOptions(selectedMdId = "") {
+  setSelectOptionsWithBlank(
+    elements.entryMd,
+    state.mdDungeons.map((md) => ({ value: md.id, label: md.name })),
+    "MDを選択",
+    false,
+  );
+  if (selectedMdId && state.mdDungeons.some((md) => md.id === selectedMdId)) elements.entryMd.value = selectedMdId;
+  setSelectOptionsWithBlank(
+    elements.editMd,
+    state.mdDungeons.map((md) => ({ value: md.id, label: md.name })),
+    "MDを選択",
+    false,
+  );
+  if (selectedMdId && state.mdDungeons.some((md) => md.id === selectedMdId)) elements.editMd.value = selectedMdId;
 }
 
 function updateEntryItemOptions(selectedItem = "") {
@@ -2885,11 +4484,11 @@ function updateEntryItemOptions(selectedItem = "") {
 }
 
 function updateLinkOptions(selectedMap = "") {
-  setSelectOptions(elements.linkMap, state.maps, "グループ未登録");
+  setSelectOptions(elements.linkMap, state.maps, "カテゴリを選択");
   setSelectOptions(
     elements.linkItem,
     state.items.map((item) => item.name),
-    "アイテム未登録",
+    "アイテムを選択",
   );
   if (selectedMap && state.maps.includes(selectedMap)) elements.linkMap.value = selectedMap;
 }
@@ -2914,19 +4513,24 @@ function setSelectOptions(select, values, emptyText) {
   }
 }
 
-function setSelectOptionsWithBlank(select, values, emptyText) {
+function setSelectOptionsWithBlank(select, values, emptyText, disableBlank = true) {
   select.replaceChildren();
   const empty = document.createElement("option");
   empty.value = "";
   empty.textContent = emptyText;
-  empty.disabled = true;
+  empty.disabled = disableBlank;
   empty.selected = true;
   select.append(empty);
 
-  for (const value of [...new Set(values.filter(Boolean))]) {
+  const seen = new Set();
+  for (const row of values.filter(Boolean)) {
+    const value = typeof row === "object" ? String(row.value || "") : String(row);
+    const label = typeof row === "object" ? String(row.label || row.value || "") : String(row);
+    if (!value || seen.has(value)) continue;
+    seen.add(value);
     const option = document.createElement("option");
     option.value = value;
-    option.textContent = value;
+    option.textContent = label;
     select.append(option);
   }
 }
@@ -2942,15 +4546,15 @@ function setDatalistOptions(datalist, values) {
 }
 
 function parseTags(value) {
-  return normalizeTags(String(value || "").split(/[\s,、]+/));
+  return normalizeTags(String(value || "").split(/[\s,]+/));
 }
 
 function normalizeTagPrefix(tag) {
-  return String(tag || "").trim().replace(/^＃/, "#");
+  return `#${String(tag || "").trim().replace(/^#+/, "")}`;
 }
 
 function normalizeTags(tags) {
-  const source = Array.isArray(tags) ? tags : String(tags || "").split(/[\s,、]+/);
+  const source = Array.isArray(tags) ? tags : String(tags || "").split(/[\s,]+/);
   return [
     ...new Set(
       source
@@ -2960,6 +4564,11 @@ function normalizeTags(tags) {
         .filter((tag) => tag.length > 1),
     ),
   ];
+}
+
+function normalizeMdTagLinkTag(value) {
+  const raw = normalizeTagPrefix(String(value || "").trim());
+  return normalizeTags([raw.startsWith("#") ? raw : `#${raw}`])[0] || "";
 }
 
 function formatTags(tags) {
@@ -2996,6 +4605,7 @@ function updateTagOptions() {
   renderTagChips(elements.tags, elements.tagChipList);
   renderTagChips(elements.editTags, elements.editTagChipList);
   renderTagChips(elements.searchTags, elements.searchTagChipList);
+  renderTagChips(elements.summaryTags, elements.summaryTagChipList);
   renderTagChips(elements.plannedTags, elements.plannedTagChipList);
   renderTagChips(elements.plannedEditTags, elements.plannedEditTagChipList);
   renderFrequentTags();
@@ -3099,12 +4709,12 @@ function renderTagSuggestions(input, target, chipList) {
 }
 
 function currentTagToken(value) {
-  const match = String(value || "").match(/[＃#]\S*$/);
+  const match = String(value || "").match(/(?:^|[\s,])#\S*$/);
   return match ? normalizeTagPrefix(match[0]) : "";
 }
 
 function commitCompleteTagTokens(input, chipList) {
-  if (!/[\s,、]$/.test(input.value)) return;
+  if (!/[\s,]/.test(input.value)) return;
   commitTagInput(input, chipList);
 }
 
@@ -3141,11 +4751,17 @@ function renderTagChips(input, chipList) {
   if (input === elements.memoTag) {
     input.placeholder = tags.length > 0 ? "" : "#タグ";
   }
+  if (input === elements.mdTagLinkTag) {
+    input.placeholder = tags.length > 0 ? "" : "#タグ";
+  }
   if (input === elements.memoSearchTag) {
     input.placeholder = tags.length > 0 ? "" : "#タグ検索";
   }
   if (input === elements.memoEditTag) {
     input.placeholder = tags.length > 0 ? "" : "#タグ";
+  }
+  if (input === elements.summaryTags) {
+    input.placeholder = tags.length > 0 ? "" : "#タグ条件";
   }
   chipList.replaceChildren(
     ...tags.map((tag) => {
@@ -3239,15 +4855,22 @@ function currentEntryItemName() {
   return currentType() === "income" ? elements.entryItem.value.trim() : elements.expenseName.value.trim();
 }
 
-function anyEntryItemName() {
-  if (currentType() === "income") {
+function entryItemNameForType(type) {
+  if (type === "income") {
     return elements.entryGroupDetails.open
       ? elements.entryItemSelect.value || elements.entryItem.value.trim()
       : elements.entryItem.value.trim() || elements.entryItemSelect.value;
   }
-  return elements.entryGroupDetails.open
-    ? elements.expenseNameSelect.value || elements.expenseName.value.trim()
-    : elements.expenseName.value.trim() || elements.expenseNameSelect.value;
+  if (type === "expense") {
+    return elements.entryGroupDetails.open
+      ? elements.expenseNameSelect.value || elements.expenseName.value.trim()
+      : elements.expenseName.value.trim() || elements.expenseNameSelect.value;
+  }
+  return "";
+}
+
+function anyEntryItemName() {
+  return entryItemNameForType(currentType());
 }
 
 function anyEditItemName() {
@@ -3295,6 +4918,30 @@ function syncEntryDirectItemName(itemName) {
   elements.expenseName.value = itemName;
 }
 
+function setEntryItemNameForType(type, itemName) {
+  if (!itemName) return;
+  if (type === "income") {
+    elements.entryItem.value = itemName;
+    elements.entryItemSelect.value = itemName;
+    return;
+  }
+  if (type === "expense") {
+    elements.expenseName.value = itemName;
+    elements.expenseNameSelect.value = itemName;
+  }
+}
+
+function syncEntryFieldsForTypeSwitch() {
+  const targetType = currentType();
+  if (!["income", "expense"].includes(targetType)) return;
+
+  const sourceItem = entryItemNameForType(targetType === "income" ? "expense" : "income");
+  if (!sourceItem) return;
+
+  if (elements.entryGroupDetails.open) updateEntryItemOptions(sourceItem);
+  setEntryItemNameForType(targetType, sourceItem);
+}
+
 function syncEditDirectItemName(itemName) {
   if (!itemName) return;
   if (editType() === "income") {
@@ -3327,7 +4974,7 @@ function confirmClearItemOutsideGroup(mapSelect, itemName, clearItemFields) {
     return true;
   }
 
-  const confirmed = window.confirm(`入力されているアイテム/項目「${itemName}」は、選択したグループ「${map}」の構成に存在しないためクリアされます。\nよろしいですか？`);
+  const confirmed = window.confirm(`カテゴリ「${mapSelect.value || map}」に所属していないアイテム「${itemName}」が選択されています。切り替えると項目連携を解除して登録します。`);
   if (!confirmed) {
     mapSelect.value = mapSelect.dataset.previousValue || "";
     return false;
@@ -3360,7 +5007,7 @@ function addSettlementEntryRow(target = elements.settlementRows, row = {}) {
     ? `
       <input class="settlement-row-item" type="text" inputmode="text" maxlength="32" placeholder="アイテム/項目" />
       <input class="settlement-row-buyer" type="text" inputmode="text" maxlength="24" placeholder="買取者" />
-      <input class="settlement-row-buy-price" type="text" inputmode="text" placeholder="例: 1K / 100M" />
+      <input class="settlement-row-buy-price" type="text" inputmode="text" placeholder="例 1K / 100M" />
       <input class="settlement-row-quantity" type="text" inputmode="text" value="1" />
       <input class="settlement-row-amount" type="text" inputmode="text" readonly tabindex="-1" />
       <button class="delete-button" type="button" aria-label="削除">×</button>
@@ -3368,7 +5015,7 @@ function addSettlementEntryRow(target = elements.settlementRows, row = {}) {
     : `
       <input class="settlement-row-item" type="text" inputmode="text" maxlength="32" placeholder="アイテム/項目" />
       <button class="calc-mini-button settlement-row-calc-button" type="button" tabindex="-1">&#35336;&#31639;&#12450;&#12471;&#12473;&#12488;</button>
-      <input class="settlement-row-price" type="text" inputmode="text" placeholder="例: 1K / 100M" />
+      <input class="settlement-row-price" type="text" inputmode="text" placeholder="例 1K / 100M" />
       <input class="settlement-row-quantity" type="text" inputmode="text" value="1" />
       <input class="settlement-row-amount" type="text" inputmode="text" readonly tabindex="-1" />
       <button class="delete-button" type="button" aria-label="削除">×</button>
@@ -3467,7 +5114,7 @@ function updateSettlementTotal() {
 function renderBuyerDistributionList(distributionPerPerson) {
   const buyerTotals = new Map();
   for (const row of settlementEntryRows(elements.purchaseRows)) {
-    const buyer = row.buyer || "未指定";
+    const buyer = row.buyer || "未設定";
     buyerTotals.set(buyer, (buyerTotals.get(buyer) || 0) + row.amount);
   }
   const rows = [["通常", distributionPerPerson], ...[...buyerTotals.entries()].map(([buyer, total]) => [buyer, distributionPerPerson - total])];
@@ -3479,22 +5126,275 @@ function renderBuyerDistributionList(distributionPerPerson) {
 
   const header = document.createElement("div");
   header.className = "buyer-distribution-table-head";
-  header.innerHTML = "<span>対象</span><span>配布金額</span>";
+  header.innerHTML = "<span>名称</span><span>金額</span>";
   elements.buyerDistributionList.append(header);
 
   for (const [name, amount] of rows) {
     const item = document.createElement("div");
     item.className = "buyer-distribution-row";
+    const breakdownRows = settlementDistributionBreakdownRows(name);
     item.innerHTML = `
       <label class="distribution-target-field">
         <input class="distribution-target-check" type="checkbox" value="${escapeHTML(name)}" ${state.settlementDistributionTargets.has(name) ? "checked" : ""} />
         <span>${escapeHTML(name)}</span>
       </label>
       <strong>${formatSignedYen(amount)}</strong>
+      ${renderSettlementDistributionBreakdown(name, breakdownRows)}
     `;
     setSignedAmountClass(item.querySelector("strong"), amount);
     elements.buyerDistributionList.append(item);
   }
+}
+
+function settlementDistributionBreakdownRows(targetName) {
+  const people = settlementPeopleCount();
+  const rows = [];
+
+  for (const row of settlementEntryRows(elements.settlementRows)) {
+    const quantity = row.quantity / people;
+    const amount = Math.round(row.unitPrice * quantity);
+    if (amount <= 0) continue;
+    rows.push({
+      label: row.item || "名称未設定",
+      detail: `数量${formatQuantity(quantity)} / 単価 ${yen.format(row.unitPrice)}`,
+      amount,
+      kind: "明細",
+    });
+  }
+
+  for (const row of settlementEntryRows(elements.purchaseRows)) {
+    const buyerName = row.buyer || "未設定";
+    const sharedQuantity = row.quantity / people;
+    const isBuyerTarget = targetName === buyerName;
+    const quantity = isBuyerTarget ? row.quantity - sharedQuantity : sharedQuantity;
+    const amount = Math.round(row.unitPrice * quantity);
+    if (amount <= 0) continue;
+    rows.push({
+      label: row.item || "名称未設定",
+      detail: `数量${formatQuantity(quantity)} / 単価 ${yen.format(row.unitPrice)}`,
+      amount: isBuyerTarget ? -amount : amount,
+      kind: "購入",
+    });
+  }
+
+  return rows;
+}
+
+function renderSettlementDistributionBreakdown(targetName, rows) {
+  const total = rows.reduce((sum, row) => sum + row.amount, 0);
+  if (!rows.length) {
+    return `
+      <div class="distribution-breakdown-popover" aria-hidden="true">
+        <span class="distribution-breakdown-title">配分内訳</span>
+        <span class="distribution-breakdown-target">${escapeHTML(targetName)}</span>
+        <span class="distribution-breakdown-empty">内訳はありません</span>
+      </div>
+    `;
+  }
+
+  return `
+    <div class="distribution-breakdown-popover" aria-hidden="true">
+      <span class="distribution-breakdown-title">配分内訳</span>
+      <span class="distribution-breakdown-target">${escapeHTML(targetName)}</span>
+      ${rows.map((row) => `
+        <span class="distribution-breakdown-kind">${escapeHTML(row.kind)}</span>
+        <span class="distribution-breakdown-main">
+          <strong>${escapeHTML(row.label)}</strong>
+          <small>${escapeHTML(row.detail)}</small>
+        </span>
+        <span class="${row.amount < 0 ? "expense-text" : "income-text"}">${formatSignedYen(row.amount)}</span>
+      `).join("")}
+      <span class="distribution-breakdown-total-label">合計</span>
+      <span class="distribution-breakdown-total ${total < 0 ? "expense-text" : "income-text"}">${formatSignedYen(total)}</span>
+    </div>
+  `;
+}
+
+function renderMdComparisonChart() {
+  const periods = buildMdTrendPeriods();
+  const mdRows = buildMdTopTrendRows(periods).slice(0, 5);
+  elements.trendChartTitle.textContent = `MD TOP5比較 ${state.periodMode === "week" ? "週次12週" : "月次12か月"}`;
+
+  if (mdRows.length === 0) {
+    elements.yearChart.innerHTML = `<div class="empty-state compact-empty">MDデータがありません</div>`;
+    return;
+  }
+
+  elements.yearChart.innerHTML = renderMdTrendLineChart(periods, mdRows);
+}
+
+function renderMdBarRows(rows, max, valueLabel) {
+  return rows.map((row) => {
+    const amount = Math.max(row.amount, 0);
+    const width = Math.max(3, (amount / max) * 100);
+    return `
+      <div class="md-chart-row">
+        <span>${escapeHTML(row.label)}</span>
+        <div class="md-chart-track">
+          <div class="md-chart-fill" style="width: ${width}%"></div>
+        </div>
+        <strong>${valueLabel === "時給" ? `${yen.format(row.amount)}/h` : formatSignedYen(row.amount)}</strong>
+      </div>
+    `;
+  }).join("");
+}
+
+function createMdComparisonPanel(title, rows, entries, valueLabel) {
+  const panel = document.createElement("section");
+  panel.className = "breakdown-panel md-summary-panel";
+  const heading = document.createElement("h3");
+  heading.textContent = title;
+  panel.append(heading);
+
+  if (rows.length === 0) {
+    const empty = document.createElement("div");
+    empty.className = "empty-state compact-empty";
+    empty.textContent = valueLabel === "時給" ? "攻略時間付きのMD記録がありません" : "MDに紐づく明細はありません";
+    panel.append(empty);
+    return panel;
+  }
+
+  const max = Math.max(...rows.map((row) => Math.max(row.amount, 0)), 1);
+  for (const row of rows) {
+    const expanded = state.expandedMdSummaryRows.has(row.label);
+    const wrapper = document.createElement("div");
+    wrapper.className = `md-summary-block${expanded ? " expanded" : ""}`;
+    wrapper.innerHTML = `
+      <button class="md-chart-row md-summary-toggle" type="button" data-md-label="${escapeHTML(row.label)}" aria-expanded="${expanded}">
+        <span>${escapeHTML(row.label)}</span>
+        <div class="md-chart-track">
+          <div class="md-chart-fill" style="width: ${Math.max(3, (Math.max(row.amount, 0) / max) * 100)}%"></div>
+        </div>
+        <strong>${valueLabel === "時給" ? `${yen.format(row.amount)}/h` : formatSignedYen(row.amount)}</strong>
+      </button>
+      ${expanded ? renderMdSummaryDetails(row.label, entries) : ""}
+    `;
+    panel.append(wrapper);
+  }
+  return panel;
+}
+
+function renderMdSummaryDetails(label, entries) {
+  const rows = entries
+    .filter((entry) => (entryMdName(entry) || "未分類MD") === label)
+    .sort(compareEntriesNewestFirst);
+  if (!rows.length) return `<div class="md-summary-details empty">該当明細がありません</div>`;
+  return `
+    <div class="md-summary-details">
+      ${rows.map((entry) => `
+        <span>${escapeHTML(formatDate(entry.date))}</span>
+        <strong>${escapeHTML(entry.item || "未設定")}</strong>
+        <small>${escapeHTML(formatQuantity(entry.quantity))} / 単価 ${yen.format(entry.unitPrice || 0)}</small>
+        <em class="${entry.type === "income" ? "income-text" : "expense-text"}">${entry.type === "income" ? "+" : "-"}${yen.format(entry.amount)}</em>
+      `).join("")}
+    </div>
+  `;
+}
+
+function toggleMdSummaryBreakdown(label) {
+  if (!label) return;
+  if (state.expandedMdSummaryRows.has(label)) {
+    state.expandedMdSummaryRows.delete(label);
+  } else {
+    state.expandedMdSummaryRows.add(label);
+  }
+  renderSummaryDetail();
+}
+
+function buildMdTrendPeriods() {
+  return state.periodMode === "week" ? buildWeeklyChartRows() : buildMonthlyChartRows();
+}
+
+function buildMdTopTrendRows(periods) {
+  const labels = new Map();
+  for (const period of periods) {
+    period.byMd = new Map();
+  }
+  for (const entry of currentSummaryEntries()) {
+    const date = entryDateTime(entry);
+    const period = periods.find((row) => {
+      if (state.periodMode === "week") return isEntryInPeriod(entry, row.start, row.end);
+      const key = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}`;
+      return row.key === key;
+    });
+    if (!period) continue;
+    const label = entryMdName(entry) || "未分類MD";
+    const amount = entry.type === "income" ? entry.amount : -entry.amount;
+    period.byMd.set(label, (period.byMd.get(label) || 0) + amount);
+    labels.set(label, (labels.get(label) || 0) + amount);
+  }
+  return [...labels.entries()]
+    .map(([label, total]) => ({
+      label,
+      total,
+      values: periods.map((period) => period.byMd.get(label) || 0),
+    }))
+    .sort(compareMdTrendRowsForCurrentPeriod);
+}
+
+function renderMdTrendLineChart(periods, rows) {
+  const sortedRows = [...rows].sort(compareMdTrendRowsForCurrentPeriod);
+  const width = 960;
+  const height = 300;
+  const padding = { top: 24, right: 228, bottom: 52, left: 78 };
+  const chartWidth = width - padding.left - padding.right;
+  const chartHeight = height - padding.top - padding.bottom;
+  const mdAxisMax = currentAxisLimits().md;
+  const maxValue = mdAxisMax > 0 ? mdAxisMax : niceCeil(Math.max(...sortedRows.flatMap((row) => row.values), 1));
+  const xOf = (index) => padding.left + (chartWidth * index) / Math.max(periods.length - 1, 1);
+  const yOf = (value) => padding.top + chartHeight - Math.max(0, Math.min(value / maxValue, 1)) * chartHeight;
+  const colors = ["#2f7d63", "#437db3", "#b7791f", "#7c5cc4", "#c0566a"];
+  const gridLines = Array.from({ length: 6 }, (_, index) => {
+    const ratio = index / 5;
+    const y = padding.top + chartHeight * ratio;
+    return `
+      <line class="chart-grid" x1="${padding.left}" y1="${y}" x2="${width - padding.right}" y2="${y}"></line>
+      <text class="chart-tick chart-left-tick" x="${padding.left - 10}" y="${y + 5}" text-anchor="end">${formatCompactAmount(maxValue * (1 - ratio))}</text>
+    `;
+  }).join("");
+  const lines = sortedRows.map((row, rowIndex) => {
+    const color = colors[rowIndex % colors.length];
+    const points = row.values.map((value, index) => `${xOf(index)},${yOf(value)}`).join(" ");
+    const dots = row.values.map((value, index) => `<circle class="md-trend-dot" cx="${xOf(index)}" cy="${yOf(value)}" r="3.5" fill="${color}"><title>${row.label} ${periods[index].label} ${yen.format(value)}</title></circle>`).join("");
+    return `<polyline class="md-trend-line" points="${points}" pathLength="1" style="stroke:${color}"></polyline>${dots}`;
+  }).join("");
+  const labels = periods.map((period, index) => `<text class="chart-label" x="${xOf(index)}" y="${height - 28}" text-anchor="middle">${escapeHTML(period.shortLabel)}</text>`).join("");
+  const legendX = width - padding.right + 28;
+  const legendY = padding.top + 4;
+  const legend = sortedRows.map((row, index) => {
+    const color = colors[index % colors.length];
+    const y = legendY + index * 38;
+    const label = row.label.length > 15 ? `${row.label.slice(0, 14)}窶ｦ` : row.label;
+    return `
+      <g class="md-trend-legend-item">
+        <rect x="${legendX}" y="${y}" width="160" height="28" rx="8" style="stroke:${color}"></rect>
+        <circle cx="${legendX + 15}" cy="${y + 14}" r="5" fill="${color}"></circle>
+        <text x="${legendX + 28}" y="${y + 18}">${escapeHTML(label)}<title>${escapeHTML(row.label)}</title></text>
+      </g>
+    `;
+  }).join("");
+  return `
+    <svg class="combo-chart md-trend-chart" viewBox="0 0 ${width} ${height}" role="img" aria-label="MD別収支推移">
+      ${gridLines}
+      <line class="chart-axis" x1="${padding.left}" y1="${padding.top + chartHeight}" x2="${width - padding.right}" y2="${padding.top + chartHeight}"></line>
+      <line class="chart-axis" x1="${padding.left}" y1="${padding.top}" x2="${padding.left}" y2="${padding.top + chartHeight}"></line>
+      ${lines}
+      ${labels}
+      <text class="chart-axis-title" x="${padding.left}" y="18">MD収支</text>
+      <text class="md-trend-legend-title" x="${legendX}" y="${padding.top - 5}">MD凡例</text>
+      ${legend}
+    </svg>
+  `;
+}
+
+function compareMdTrendRowsForCurrentPeriod(a, b) {
+  const aCurrent = a.values.at(-1) || 0;
+  const bCurrent = b.values.at(-1) || 0;
+  return bCurrent - aCurrent || b.total - a.total || a.label.localeCompare(b.label, "ja", { numeric: true, sensitivity: "base" });
+}
+
+function compareAmountDescending(a, b) {
+  return b.amount - a.amount || b.count - a.count || a.label.localeCompare(b.label, "ja", { numeric: true, sensitivity: "base" });
 }
 
 function setSignedAmountClass(element, amount) {
@@ -3558,7 +5458,7 @@ function purchaseRowsForSelectedTarget() {
   const people = settlementPeopleCount();
   const selectedTargets = new Set(state.settlementDistributionTargets);
   return settlementEntryRows(elements.purchaseRows).flatMap((row) => {
-    const buyerName = row.buyer || "未指定";
+    const buyerName = row.buyer || "未設定";
     const isSelectedBuyer = selectedTargets.has(buyerName);
     const sharedQuantity = row.quantity / people;
     if (isSelectedBuyer) {
@@ -3606,6 +5506,7 @@ function openSettlementConfirmModal(rows) {
 }
 
 function renderSettlementConfirmList() {
+  const total = state.pendingSettlementEntries.reduce((sum, entry) => sum + (entry.type === "income" ? entry.amount : -entry.amount), 0);
   elements.settlementConfirmList.innerHTML = `
     <div class="settlement-confirm-head">
       <span>区分</span>
@@ -3627,6 +5528,13 @@ function renderSettlementConfirmList() {
     `;
     elements.settlementConfirmList.append(row);
   }
+  const totalRow = document.createElement("div");
+  totalRow.className = "settlement-confirm-total";
+  totalRow.innerHTML = `
+    <span>参考合計</span>
+    <strong class="${total < 0 ? "expense-text" : "income-text"}">${formatSignedYen(total)}</strong>
+  `;
+  elements.settlementConfirmList.append(totalRow);
 }
 
 function closeSettlementConfirmModal() {
@@ -3674,7 +5582,7 @@ function openCalculationModal(scope, target, sourceRow = null) {
   const amountInput = isSettlementRow ? sourceRow?.querySelector(".settlement-row-amount") : isEdit ? elements.editAmount : elements.amount;
 
   state.calcContext = { scope, row: sourceRow };
-  elements.calcTitle.textContent = "計算アシスト";
+  elements.calcTitle.textContent = "計算";
   elements.calcModeUnitPrice.checked = target === "unitPrice";
   elements.calcModeQuantity.checked = target === "quantity";
   elements.calcPriceAmount.value = amountInput.value;
@@ -3786,7 +5694,7 @@ function openSettlementModal(scope) {
   const quantity = isEdit ? parseQuantityInput(elements.editQuantity.value) : parseQuantityInput(elements.quantity.value);
   const unitPrice = isEdit ? editUnitPrice() : currentUnitPrice();
   if (quantity <= 0) {
-    window.alert("数量は必須入力です。");
+    window.alert("数量を入力してください");
     return;
   }
 
@@ -3889,14 +5797,23 @@ function updateEntryInputMode() {
   elements.amount.toggleAttribute("required", type !== "settlement");
 }
 
-function entrySubtitle(entry, mapName) {
+function entrySubtitle(entry, mapName, mdName = entryMdName(entry)) {
   const parts = [];
+  if (mdName) parts.push(`MD ${mdName}`);
   if (entry.map || entry.category) parts.push(mapName);
   if (entry.unitPrice) parts.push(`単価 ${yen.format(entry.unitPrice)}`);
   if (entry.quantity) parts.push(`数量 ${formatQuantity(entry.quantity)}`);
   const tags = formatTags(entry.tags);
   if (tags) parts.push(tags);
   return parts.join(" / ");
+}
+
+function entryMdName(entry) {
+  return entry.mdName || mdNameById(entry.mdId);
+}
+
+function mdNameById(mdId) {
+  return state.mdDungeons.find((md) => md.id === mdId)?.name || "";
 }
 
 function openEditModal(id) {
@@ -3915,10 +5832,11 @@ function openEditModal(id) {
   elements.editGroupDetails.open = Boolean(entry.map);
   updateEditMapOptions(entry.map || "");
   updateEditItemOptions(entry.item || "");
+  updateEntryMdOptions(entry.mdId || "");
 
   if (entry.type === "income") {
     elements.editItem.value = entry.item || "";
-    elements.editIncomeUnitPrice.value = formatAmount(entry.unitPrice ?? "");
+    elements.editIncomeUnitPrice.value = formatAmount(entry.unitPrice || "");
   } else {
     elements.editExpenseName.value = entry.item || "";
     elements.editExpenseUnitPrice.value = formatAmount(entry.unitPrice || "");
@@ -3933,12 +5851,13 @@ function openEditModal(id) {
 function closeEditModal() {
   state.editingEntryId = "";
   state.sendingPlannedId = "";
+  updatePlannedTransferRemainderNotice();
   elements.editModal.classList.add("hidden");
 }
 
 function deleteEditedEntry() {
   if (!state.editingEntryId) return;
-  if (!window.confirm("この明細を削除しますか？")) return;
+  if (!window.confirm("この明細を削除してよろしいですか？")) return;
 
   state.entries = state.entries.filter((entry) => entry.id !== state.editingEntryId);
   saveEntries();
@@ -3973,6 +5892,8 @@ function saveEditedEntry() {
   entry.amount = parseAmount(elements.editAmount.value);
   entry.map = resolvedEditMap(itemName);
   entry.item = itemName;
+  entry.mdId = elements.editMd.value || "";
+  entry.mdName = mdNameById(elements.editMd.value);
   entry.quantity = parseQuantityInput(elements.editQuantity.value) || 1;
   entry.unitPrice = editUnitPrice();
   entry.tags = getTagValues(elements.editTags);
@@ -3994,7 +5915,7 @@ function updateEditMapOptions(selectedMap = "") {
   elements.editMap.replaceChildren();
   const empty = document.createElement("option");
   empty.value = "";
-  empty.textContent = "グループなし";
+  empty.textContent = "カテゴリを選択";
   elements.editMap.append(empty);
   for (const map of state.maps) {
     const option = document.createElement("option");
@@ -4047,6 +5968,21 @@ function updateEditAmount() {
   const quantity = parseQuantityInput(elements.editQuantity.value);
   const unitPrice = editUnitPrice();
   elements.editAmount.value = quantity > 0 && unitPrice >= 0 ? formatAmount(Math.round(quantity * unitPrice)) : "";
+  updatePlannedTransferRemainderNotice();
+}
+
+function updatePlannedTransferRemainderNotice() {
+  if (!elements.plannedTransferRemainderNotice) return;
+  const planned = state.sendingPlannedId
+    ? state.plannedPurchases.find((item) => item.id === state.sendingPlannedId)
+    : null;
+  const usedQuantity = parseQuantityInput(elements.editQuantity.value);
+  const remaining = planned ? plannedQuantity(planned) - usedQuantity : 0;
+  const shouldShow = Boolean(planned) && usedQuantity > 0 && remaining > 0;
+  elements.plannedTransferRemainderNotice.classList.toggle("hidden", !shouldShow);
+  elements.plannedTransferRemainderNotice.textContent = shouldShow
+    ? `${formatQuantity(remaining)}個の予定が未使用です`
+    : "";
 }
 
 function editUnitPrice() {
@@ -4105,20 +6041,58 @@ function editType() {
 }
 
 function setRadioValue(form, name, value) {
-  const radio = form.querySelector(`input[name="${name}"][value="${value}"]`);
+  const selector = "input[name=\"" + name + "\"][value=\"" + value + "\"]";
+  const radio = form.querySelector(selector);
   if (radio) radio.checked = true;
 }
 
 function openMasterEditModal(type, name) {
   state.editingMaster = { type, name };
-  elements.masterEditTitle.textContent = type === "map" ? "グループ編集" : "アイテム編集";
-  elements.masterName.value = name;
-  elements.masterAmountLabel.classList.toggle("hidden", type === "map");
+  const titleMap = {
+    map: "カテゴリ",
+    item: "アイテム",
+    character: "キャラクター",
+    md: "MD",
+  };
+  elements.masterEditTitle.textContent = titleMap[type] || "編集";
+  elements.masterAmountLabel.classList.toggle("hidden", type !== "item");
+  elements.masterJobLabel.classList.toggle("hidden", type !== "character");
+  elements.masterCharacterLevelLabel.classList.toggle("hidden", type !== "character");
+  elements.masterIconLabel.classList.toggle("hidden", type !== "character");
+  elements.masterMdIdNameLabel.classList.toggle("hidden", type !== "md");
+  elements.masterMdConditionLevelLabel.classList.toggle("hidden", type !== "md");
+  elements.masterMdResetTypeLabel.classList.toggle("hidden", type !== "md");
+  elements.masterName.maxLength = type === "md" ? 48 : 32;
+
+  elements.masterAmount.value = "";
+  elements.masterJob.value = "";
+  elements.masterCharacterLevel.value = "";
+  elements.masterIcon.value = "";
+  state.pendingMasterIcon = "";
+  elements.masterMdIdName.value = "";
+  elements.masterMdConditionLevel.value = "";
+  elements.masterMdResetType.value = "daily";
 
   if (type === "item") {
+    elements.masterName.value = name;
     const item = findItem(name);
     elements.masterAmount.value = item ? formatAmount(item.amount) : "0";
+  } else if (type === "character") {
+    const character = state.characters.find((row) => row.id === name);
+    if (!character) return;
+    elements.masterName.value = character.name;
+    elements.masterJob.value = character.job || "";
+    elements.masterCharacterLevel.value = character.level ? String(character.level) : "";
+    state.pendingMasterIcon = character.icon || "";
+  } else if (type === "md") {
+    const md = state.mdDungeons.find((row) => row.id === name);
+    if (!md) return;
+    elements.masterName.value = md.name;
+    elements.masterMdIdName.value = md.idName || "";
+    elements.masterMdConditionLevel.value = md.conditionLevel ? String(md.conditionLevel) : "";
+    elements.masterMdResetType.value = normalizeMdResetType(md.resetType);
   } else {
+    elements.masterName.value = name;
     elements.masterAmount.value = "";
   }
 
@@ -4133,13 +6107,18 @@ function closeMasterEditModal() {
 function saveMasterEdit() {
   if (!state.editingMaster) return;
   const oldName = state.editingMaster.name;
+  const type = state.editingMaster.type;
   const newName = elements.masterName.value.trim();
   if (!newName) return;
 
-  if (state.editingMaster.type === "map") {
+  if (type === "map") {
     renameMap(oldName, newName);
-  } else {
+  } else if (type === "item") {
     renameItem(oldName, newName, parseAmount(elements.masterAmount.value));
+  } else if (type === "character") {
+    renameCharacter(oldName, newName, elements.masterJob.value.trim(), parseLevelValue(elements.masterCharacterLevel.value), state.pendingMasterIcon);
+  } else if (type === "md") {
+    renameMdDungeon(oldName, newName, elements.masterMdIdName.value.trim(), elements.masterMdResetType.value, parseLevelValue(elements.masterMdConditionLevel.value));
   }
 
   closeMasterEditModal();
@@ -4156,13 +6135,17 @@ function deleteMasterEdit() {
     delete state.links[name];
     saveMaps();
     saveLinks();
-  } else {
+  } else if (type === "item") {
     state.items = state.items.filter((item) => item.name !== name);
     for (const map of Object.keys(state.links)) {
       state.links[map] = state.links[map].filter((item) => item !== name);
     }
     saveItems();
     saveLinks();
+  } else if (type === "character") {
+    deleteCharacter(name);
+  } else if (type === "md") {
+    deleteMdDungeon(name);
   }
 
   closeMasterEditModal();
@@ -4206,6 +6189,46 @@ function renameItem(oldName, newName, amount) {
   saveEntries();
 }
 
+function renameCharacter(id, newName, job, level, icon) {
+  const character = state.characters.find((row) => row.id === id);
+  if (!character) return;
+  if (character.name !== newName && state.characters.some((candidate) => candidate.name === newName)) return;
+
+  character.name = newName;
+  character.job = job;
+  character.level = parseLevelValue(level);
+  character.icon = icon;
+  for (const run of state.mdRuns) {
+    if (run.characterId === id) run.characterName = newName;
+  }
+
+  saveCharacters();
+  saveMdRuns();
+}
+
+function renameMdDungeon(id, newName, idName, resetType, conditionLevel) {
+  const md = state.mdDungeons.find((row) => row.id === id);
+  if (!md) return;
+  if (md.name !== newName && state.mdDungeons.some((candidate) => candidate.name === newName)) return;
+  if (idName && md.idName !== idName && state.mdDungeons.some((candidate) => candidate.idName === idName)) return;
+
+  md.name = newName;
+  md.idName = idName;
+  md.resetType = normalizeMdResetType(resetType);
+  md.periodLimit = mdPeriodLimit(md);
+  md.conditionLevel = parseLevelValue(conditionLevel);
+  for (const entry of state.entries) {
+    if (entry.mdId === id) entry.mdName = newName;
+  }
+  for (const run of state.mdRuns) {
+    if (run.mdId === id) run.mdName = newName;
+  }
+
+  saveMdDungeons();
+  saveEntries();
+  saveMdRuns();
+}
+
 function findItem(name) {
   return state.items.find((item) => item.name === name);
 }
@@ -4215,6 +6238,7 @@ function currentType() {
 }
 
 function showTab(tab) {
+  if (tab === "md" && !state.mdUnlocked) unlockMdTab();
   const currentTab = [...elements.tabs].find((button) => button.classList.contains("active"))?.dataset.tab;
   const shouldResetScroll = currentTab && currentTab !== tab;
 
@@ -4223,7 +6247,7 @@ function showTab(tab) {
   });
 
   Object.entries(elements.panels).forEach(([name, panel]) => {
-    const isSettingsGroup = tab === "settings" && ["maps", "items", "links", "settings"].includes(name);
+    const isSettingsGroup = tab === "settings" && ["maps", "items", "links", "characters", "mdTagLink", "mdMaster", "settings"].includes(name);
     panel.classList.toggle("active", name === tab || isSettingsGroup);
   });
   if (tab === "settings" && ![...elements.settingsAnchors].some((button) => button.classList.contains("active"))) {
@@ -4237,9 +6261,43 @@ function showTab(tab) {
   if (shouldResetScroll) window.scrollTo({ top: 0, left: 0, behavior: "auto" });
 }
 
+function handleMdUnlockShortcut(event) {
+  if (!event.altKey || event.ctrlKey || event.metaKey || event.shiftKey) {
+    state.mdUnlockSequence = [];
+    return;
+  }
+  const key = event.key.toLowerCase();
+  if (!["r", "o"].includes(key)) return;
+  event.preventDefault();
+
+  const expected = state.mdUnlockSequence.length === 0 ? "r" : "o";
+  state.mdUnlockSequence = key === expected ? [...state.mdUnlockSequence, key] : key === "r" ? ["r"] : [];
+  if (state.mdUnlockSequence.join("") !== "ro") return;
+
+  state.mdUnlockSequence = [];
+  unlockMdTab();
+  showTab("md");
+}
+
+function unlockMdTab() {
+  if (!state.mdUnlocked) {
+    state.mdUnlocked = true;
+    localStorage.setItem(MD_UNLOCK_STORAGE_KEY, "true");
+  }
+  updateMdTabVisibility();
+}
+
+function updateMdTabVisibility() {
+  elements.mdTab.classList.toggle("hidden", !state.mdUnlocked);
+}
+
 function scrollToSettingsBlock(targetId) {
   const target = document.querySelector(`#${targetId}`);
   if (!target) return;
+  const group = target.closest(".settings-interface-group");
+  if (group) group.open = true;
+  if (["mapsPanel", "itemsPanel", "linksPanel"].includes(targetId)) document.querySelector("#settingsGroupManagement")?.setAttribute("open", "");
+  if (["charactersPanel", "mdMasterPanel", "mdTagLinkPanel"].includes(targetId)) document.querySelector("#settingsMdManagement")?.setAttribute("open", "");
   elements.settingsAnchors.forEach((button) => {
     button.classList.toggle("active", button.dataset.settingsTarget === targetId);
   });
@@ -4361,6 +6419,10 @@ function sum(entries) {
 
 function todayISO() {
   const date = new Date();
+  return dateToISO(date);
+}
+
+function dateToISO(date) {
   const year = date.getFullYear();
   const month = String(date.getMonth() + 1).padStart(2, "0");
   const day = String(date.getDate()).padStart(2, "0");
@@ -4375,7 +6437,7 @@ function confirmDistantYear(dateValue) {
   const currentYear = new Date().getFullYear();
   if (Math.abs(year - currentYear) < 2) return true;
 
-  return window.confirm(`入力された日付は${year}年です。現在年（${currentYear}年）から離れています。この日付で登録しますか？`);
+  return window.confirm(`${year}年は登録年から2年以上離れています。${year}年にしてもよいですか？`);
 }
 
 function currentTime() {
@@ -4394,13 +6456,13 @@ function validateNotFutureDate(dateValue) {
   const today = new Date(`${todayISO()}T00:00:00`);
   if (inputDate <= today) return true;
 
-  window.alert("未来日付の明細は登録できません。");
+  window.alert("未来の日付は登録できません");
   return false;
 }
 
 function validateEntryNumbers(unitPrice, quantity, amount) {
   if (unitPrice > 0 && quantity > 0 && amount > 0) return true;
-  window.alert("単価、数量、金額は必須入力です。");
+  window.alert("単価、数量、金額を正しく入力してください");
   return false;
 }
 
@@ -4640,7 +6702,15 @@ function loadEntries() {
 
   try {
     const entries = JSON.parse(stored);
-    return Array.isArray(entries) ? entries.map((entry) => ({ ...entry, tags: normalizeTags(entry.tags) })) : [];
+    return Array.isArray(entries)
+      ? entries.map((entry) => ({
+          ...entry,
+          tags: normalizeTags(entry.tags),
+          mdId: String(entry.mdId || ""),
+          mdName: String(entry.mdName || ""),
+          mdRunId: String(entry.mdRunId || ""),
+        }))
+      : [];
   } catch {
     return [];
   }
@@ -4715,6 +6785,93 @@ function loadMemos() {
   }
 }
 
+function loadCharacters() {
+  const stored = localStorage.getItem(CHARACTER_STORAGE_KEY);
+  if (!stored) return [];
+  try {
+    return normalizeCharacters(JSON.parse(stored));
+  } catch {
+    return [];
+  }
+}
+
+function loadMdDungeons() {
+  const stored = localStorage.getItem(MD_STORAGE_KEY);
+  if (!stored) return [];
+  try {
+    return normalizeMdDungeons(JSON.parse(stored));
+  } catch {
+    return [];
+  }
+}
+
+function loadMdRuns() {
+  const stored = localStorage.getItem(MD_RUN_STORAGE_KEY);
+  if (!stored) return [];
+  try {
+    return normalizeMdRuns(JSON.parse(stored));
+  } catch {
+    return [];
+  }
+}
+
+function normalizeCharacters(characters) {
+  if (!Array.isArray(characters)) return [];
+  return characters
+    .filter((character) => character && character.name)
+    .map((character) => ({
+      id: String(character.id || crypto.randomUUID()),
+      name: String(character.name),
+      job: String(character.job || ""),
+      level: parseLevelValue(character.level),
+      icon: String(character.icon || ""),
+      createdAt: character.createdAt || new Date().toISOString(),
+    }));
+}
+
+function normalizeMdDungeons(dungeons) {
+  if (!Array.isArray(dungeons)) return [];
+  return dungeons
+    .filter((md) => md && md.name)
+    .map((md) => {
+      const resetType = normalizeMdResetType(md.resetType || mdResetTypeFromLegacyLimit(md.weeklyLimit || md.limit));
+      return {
+        id: String(md.id || crypto.randomUUID()),
+        name: String(md.name),
+        idName: String(md.idName || md.code || md.name),
+        resetType,
+        periodLimit: mdPeriodLimit({ resetType }),
+        conditionLevel: parseLevelValue(md.conditionLevel),
+        hiddenFromManagement: Boolean(md.hiddenFromManagement),
+        createdAt: md.createdAt || new Date().toISOString(),
+      };
+    });
+}
+
+function mdResetTypeFromLegacyLimit(limit) {
+  const value = Number(limit || 1);
+  if (value >= 2) return "weekly2";
+  return "weekly1";
+}
+
+function normalizeMdRuns(runs) {
+  if (!Array.isArray(runs)) return [];
+  return runs
+    .filter((run) => run && run.date && (run.characterId || run.characterName) && (run.mdId || run.mdName))
+    .map((run) => ({
+      id: String(run.id || crypto.randomUUID()),
+      date: String(run.date),
+      characterId: String(run.characterId || ""),
+      characterName: String(run.characterName || ""),
+      mdId: String(run.mdId || ""),
+      mdName: String(run.mdName || ""),
+      source: run.source === "auto" ? "auto" : "manual",
+      durationMinutes: Math.max(0, Number(run.durationMinutes || 0)),
+      occurredAt: String(run.occurredAt || ""),
+      createdAt: run.createdAt || new Date().toISOString(),
+    }));
+}
+
 function normalizeMemos(memos) {
   if (!Array.isArray(memos)) return [];
   return memos
@@ -4722,9 +6879,9 @@ function normalizeMemos(memos) {
     .map((memo) => {
       const legacyTagMap = {
         todo: "#ToDo",
-        event: "#起きた事",
-        thought: "#思った事",
-        note: "#メモ",
+        event: "#イベント",
+        thought: "#メモ",
+        note: "#ノート",
       };
       return {
         id: String(memo.id || crypto.randomUUID()),
@@ -4784,6 +6941,10 @@ function parseStringArray(value) {
   }
 }
 
+function loadStringSet(key) {
+  return new Set(parseStringArray(localStorage.getItem(key) || "[]"));
+}
+
 function normalizeLinks(links) {
   const normalized = {};
   for (const [map, items] of Object.entries(links)) {
@@ -4795,8 +6956,11 @@ function normalizeLinks(links) {
 function normalizeNumericText(value) {
   return String(value || "")
     .replace(/[０-９]/g, (char) => String.fromCharCode(char.charCodeAt(0) - 0xfee0))
-    .replace(/[．，－]/g, (char) => ({ "．": ".", "，": ",", "－": "-" })[char] || char)
-    .replace(/[ＫｋＭｍＧｇＴｔ]/g, (char) => String.fromCharCode(char.charCodeAt(0) - 0xfee0));
+    .replace(/[Ａ-Ｚａ-ｚ]/g, (char) => String.fromCharCode(char.charCodeAt(0) - 0xfee0))
+    .replace(/[，，]/g, ",")
+    .replace(/[．。]/g, ".")
+    .replace(/[－−–—]/g, "-")
+    .replace(/　/g, " ");
 }
 
 function parseAmount(value) {
@@ -4895,8 +7059,11 @@ function hasMoneyUnitSuffix(value) {
 
 function isQuantityInput(input) {
   if (input?.classList?.contains("settlement-row-quantity")) return true;
+  if (input?.classList?.contains("md-entry-line-quantity")) return true;
   return [
     "quantityInput",
+    "mdEntryDurationInput",
+    "mdEntryQuantityInput",
     "editQuantityInput",
     "plannedQuantityInput",
     "plannedEditQuantityInput",
@@ -4909,9 +7076,13 @@ function isQuantityInput(input) {
 function isMoneyInput(input) {
   if (input?.classList?.contains("settlement-row-price")) return true;
   if (input?.classList?.contains("settlement-row-buy-price")) return true;
+  if (input?.classList?.contains("md-entry-line-price")) return true;
+  if (input?.classList?.contains("md-entry-line-amount")) return true;
   return [
     "unitPriceInput",
     "amountInput",
+    "mdEntryUnitPriceInput",
+    "mdEntryAmountInput",
     "calcPriceAmountInput",
     "calcQuantityAmountInput",
     "calcQuantityPriceInput",
@@ -4938,6 +7109,10 @@ function refreshNumericDependentValues(input) {
   }
   if (input.closest?.("#editForm")) {
     updateEditAmount();
+    return;
+  }
+  if (input.closest?.("#mdEntryForm")) {
+    updateMdEntryLineAmount(input.closest(".md-entry-line"));
     return;
   }
   if (input.closest?.("#calcForm")) {
@@ -4971,6 +7146,22 @@ function savePlannedPurchases() {
 
 function saveMemos() {
   localStorage.setItem(MEMO_STORAGE_KEY, JSON.stringify(state.memos));
+}
+
+function saveCharacters() {
+  localStorage.setItem(CHARACTER_STORAGE_KEY, JSON.stringify(state.characters));
+}
+
+function saveMdDungeons() {
+  localStorage.setItem(MD_STORAGE_KEY, JSON.stringify(state.mdDungeons));
+}
+
+function saveMdRuns() {
+  localStorage.setItem(MD_RUN_STORAGE_KEY, JSON.stringify(state.mdRuns));
+}
+
+function saveMdMonitorImportedIds() {
+  localStorage.setItem(MD_MONITOR_IMPORTED_STORAGE_KEY, JSON.stringify([...state.mdMonitorImportedIds]));
 }
 
 function escapeHTML(value) {
