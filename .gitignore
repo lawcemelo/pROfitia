@@ -4,7 +4,3 @@ Thumbs.db
 *.log
 .env
 .env.*
-monitor/debug/
-monitor/__pycache__/
-monitor/md-events.json
-*.pyc
