@@ -223,6 +223,8 @@ const state = {
   mdMonitorConnected: false,
   mdMonitorTimer: null,
   mdDrag: null,
+  mdUnlockKeys: new Set(),
+  mdUnlockSequence: [],
   mdEntryContext: null,
   pendingCharacterIcon: "",
   pendingMasterIcon: "",
@@ -355,6 +357,7 @@ const elements = {
   mdTagLinkMd: document.querySelector("#mdTagLinkMdInput"),
   addMdTagLink: document.querySelector("#addMdTagLinkButton"),
   mdLayoutButtons: document.querySelectorAll("[data-md-layout]"),
+  mdActionGuide: document.querySelector(".md-action-guide"),
   mdMonitorCharacter: document.querySelector("#mdMonitorCharacterInput"),
   mdStartTime: document.querySelector("#mdStartTimeInput"),
   mdStartNow: document.querySelector("#mdStartNowButton"),
@@ -656,6 +659,8 @@ function bindEvents() {
   });
 
   document.addEventListener("keydown", handleMdUnlockShortcut);
+  document.addEventListener("keyup", handleMdUnlockKeyRelease);
+  window.addEventListener("blur", resetMdUnlockKeys);
   window.addEventListener("resize", updateStickyTopHeight);
 
   elements.addCharacter.addEventListener("click", addCharacter);
@@ -691,6 +696,7 @@ function bindEvents() {
   });
 
   elements.mdWeekGrid.addEventListener("click", (event) => {
+    if (!isMdManagementInteractive()) return;
     const visibilityButton = event.target.closest(".md-visibility-button");
     if (visibilityButton) {
       event.stopPropagation();
@@ -704,6 +710,7 @@ function bindEvents() {
     const slot = event.target.closest(".md-run-slot");
     if (!slot) return;
     event.preventDefault();
+    if (!isMdManagementInteractive()) return;
     openMdEntryModal(slot.dataset.mdId, slot.dataset.characterId, slot.dataset.runId);
   });
   elements.mdWeekGrid.addEventListener("dragstart", handleMdHeaderDragStart);
@@ -1175,7 +1182,7 @@ function bindEvents() {
   elements.summaryDetail.addEventListener("click", (event) => {
     const mdToggle = event.target.closest(".md-summary-toggle");
     if (mdToggle) {
-      toggleMdSummaryBreakdown(mdToggle.dataset.mdLabel);
+      toggleMdSummaryBreakdown(mdToggle.dataset.mdKey);
       return;
     }
     const button = event.target.closest(".breakdown-sort-button");
@@ -1204,6 +1211,15 @@ function bindEvents() {
     }
   });
   elements.mdEntryForm.addEventListener("click", (event) => {
+    const calcButton = event.target.closest(".md-entry-line-calc-button");
+    if (calcButton) {
+      event.preventDefault();
+      event.stopPropagation();
+      const line = calcButton.closest(".md-entry-line");
+      if (line) openCalculationModal("mdEntryRow", "unitPrice", line);
+      return;
+    }
+
     const deleteButton = event.target.closest(".md-entry-line-delete");
     if (!deleteButton) return;
     if (elements.mdEntryLines.children.length <= 1) return;
@@ -3090,6 +3106,7 @@ function toggleMdDungeonVisibility(id, confirmAction = false) {
 }
 
 function toggleMdRunSlot(characterId, mdId, runId) {
+  if (!isMdManagementInteractive()) return;
   if (runId) {
     const run = state.mdRuns.find((candidate) => candidate.id === runId);
     if (!run) return;
@@ -3129,6 +3146,7 @@ function toggleMdRunSlot(characterId, mdId, runId) {
 }
 
 function openMdEntryModal(mdId, characterId = "", runId = "") {
+  if (!isMdManagementInteractive()) return;
   const run = runId ? state.mdRuns.find((candidate) => candidate.id === runId) : null;
   const initialMdId = run?.mdId || mdId;
   if (!state.mdDungeons.some((md) => md.id === initialMdId)) return;
@@ -3390,7 +3408,19 @@ function mdEntryOccurredAt(date, time) {
 function renderMdManagement() {
   updateMdLayoutToggle();
   updateMdMonitorCharacterOptions();
+  updateMdActionGuide();
   renderMdWeekGrid();
+}
+
+function isMdManagementInteractive() {
+  return state.periodMode === "week";
+}
+
+function updateMdActionGuide() {
+  if (!elements.mdActionGuide) return;
+  elements.mdActionGuide.textContent = isMdManagementInteractive()
+    ? "MD完了時は左クリックでチェック、右クリックで明細付きチェック。"
+    : "週間モードにしてください";
 }
 
 function updateMdMonitorCharacterOptions() {
@@ -3568,6 +3598,7 @@ function renderMdWeekGrid() {
 
   const table = document.createElement("div");
   table.className = "md-week-table";
+  table.classList.toggle("readonly", !isMdManagementInteractive());
   const isDungeonRows = state.mdLayout === "dungeonRows";
   table.classList.toggle("dungeon-rows", isDungeonRows);
   table.classList.toggle("character-rows", !isDungeonRows);
@@ -3751,6 +3782,7 @@ function reorderMdHeader(type, sourceId, targetId) {
 function mdRunSlotCell(character, md, runs) {
   const cell = document.createElement("div");
   cell.className = "md-week-cell md-week-slot-cell";
+  const isReadonly = !isMdManagementInteractive();
   const isLocked = !canCharacterEnterMd(character, md);
   const limit = mdPeriodLimit(md);
   cell.classList.toggle("completed", runs.length >= limit);
@@ -3766,9 +3798,9 @@ function mdRunSlotCell(character, md, runs) {
           data-character-id="${escapeHTML(character.id)}"
           data-md-id="${escapeHTML(md.id)}"
           data-run-id="${run ? escapeHTML(run.id) : ""}"
-          ${isLocked ? "disabled" : ""}
-          title="${isLocked ? `条件レベル未達: Lv.${formatLevel(md.conditionLevel)}必要` : `左クリック: 周回${run ? "取消" : "登録"} / 右クリック: MD明細追加`}"
-          aria-label="${escapeHTML(character.name)} ${escapeHTML(md.name)} ${isLocked ? "条件レベル未達" : run ? "取り消し" : "登録"}">
+          ${isLocked || isReadonly ? "disabled" : ""}
+          title="${isReadonly ? "週間モードで操作してください" : isLocked ? `条件レベル未達: Lv.${formatLevel(md.conditionLevel)}必要` : `左クリック: 周回${run ? "取消" : "登録"} / 右クリック: MD明細追加`}"
+          aria-label="${escapeHTML(character.name)} ${escapeHTML(md.name)} ${isReadonly ? "月間モードでは操作不可" : isLocked ? "条件レベル未達" : run ? "取り消し" : "登録"}">
           <span class="md-run-orb" aria-hidden="true"></span>
           <small>${run ? escapeHTML(formatDate(run.date)) : ""}</small>
         </button>
@@ -4073,8 +4105,8 @@ function renderSummaryDetail() {
   grid.className = "breakdown-grid";
   if (state.summaryView === "md") {
     grid.append(
-      createMdComparisonPanel("MD別収支", aggregateByMd(entries).sort(compareAmountDescending), entries, "収支"),
-      createMdComparisonPanel("MD別 時給収支", aggregateMdHourly(entries, start, end).sort(compareAmountDescending).slice(0, 10), entries, "時給収支"),
+      createMdComparisonPanel("MD別収支", aggregateByMd(entries).sort(compareAmountDescending), entries, "収支", "net"),
+      createMdComparisonPanel("MD別 時給収支", aggregateMdHourly(entries, start, end).sort(compareAmountDescending).slice(0, 10), entries, "時給収支", "hourly"),
     );
   } else {
     grid.append(
@@ -5239,7 +5271,7 @@ function renderMdBarRows(rows, max, valueLabel) {
   }).join("");
 }
 
-function createMdComparisonPanel(title, rows, entries, valueLabel) {
+function createMdComparisonPanel(title, rows, entries, valueLabel, panelKey) {
   const panel = document.createElement("section");
   panel.className = "breakdown-panel md-summary-panel";
   const heading = document.createElement("h3");
@@ -5256,11 +5288,12 @@ function createMdComparisonPanel(title, rows, entries, valueLabel) {
 
   const max = Math.max(...rows.map((row) => Math.max(row.amount, 0)), 1);
   for (const row of rows) {
-    const expanded = state.expandedMdSummaryRows.has(row.label);
+    const expandKey = mdSummaryExpandKey(panelKey, row.label);
+    const expanded = state.expandedMdSummaryRows.has(expandKey);
     const wrapper = document.createElement("div");
     wrapper.className = `md-summary-block${expanded ? " expanded" : ""}`;
     wrapper.innerHTML = `
-      <button class="md-chart-row md-summary-toggle" type="button" data-md-label="${escapeHTML(row.label)}" aria-expanded="${expanded}">
+      <button class="md-chart-row md-summary-toggle" type="button" data-md-key="${escapeHTML(expandKey)}" data-md-label="${escapeHTML(row.label)}" aria-expanded="${expanded}">
         <span>${escapeHTML(row.label)}</span>
         <div class="md-chart-track">
           <div class="md-chart-fill" style="width: ${Math.max(3, (Math.max(row.amount, 0) / max) * 100)}%"></div>
@@ -5291,12 +5324,16 @@ function renderMdSummaryDetails(label, entries) {
   `;
 }
 
-function toggleMdSummaryBreakdown(label) {
-  if (!label) return;
-  if (state.expandedMdSummaryRows.has(label)) {
-    state.expandedMdSummaryRows.delete(label);
+function mdSummaryExpandKey(panelKey, label) {
+  return `${panelKey || "summary"}:${label || ""}`;
+}
+
+function toggleMdSummaryBreakdown(key) {
+  if (!key) return;
+  if (state.expandedMdSummaryRows.has(key)) {
+    state.expandedMdSummaryRows.delete(key);
   } else {
-    state.expandedMdSummaryRows.add(label);
+    state.expandedMdSummaryRows.add(key);
   }
   renderSummaryDetail();
 }
@@ -5571,15 +5608,31 @@ function commitPendingSettlementEntries() {
 function openCalculationModal(scope, target, sourceRow = null) {
   const isEdit = scope === "edit";
   const isSettlementRow = scope === "settlementRow";
+  const isMdEntryRow = scope === "mdEntryRow";
   const unitPriceInput = isSettlementRow
     ? sourceRow?.querySelector(".settlement-row-price")
+    : isMdEntryRow
+    ? sourceRow?.querySelector(".md-entry-line-price")
     : isEdit
     ? editType() === "income"
       ? elements.editIncomeUnitPrice
       : elements.editExpenseUnitPrice
     : elements.unitPrice;
-  const quantityInput = isSettlementRow ? sourceRow?.querySelector(".settlement-row-quantity") : isEdit ? elements.editQuantity : elements.quantity;
-  const amountInput = isSettlementRow ? sourceRow?.querySelector(".settlement-row-amount") : isEdit ? elements.editAmount : elements.amount;
+  const quantityInput = isSettlementRow
+    ? sourceRow?.querySelector(".settlement-row-quantity")
+    : isMdEntryRow
+    ? sourceRow?.querySelector(".md-entry-line-quantity")
+    : isEdit
+    ? elements.editQuantity
+    : elements.quantity;
+  const amountInput = isSettlementRow
+    ? sourceRow?.querySelector(".settlement-row-amount")
+    : isMdEntryRow
+    ? sourceRow?.querySelector(".md-entry-line-amount")
+    : isEdit
+    ? elements.editAmount
+    : elements.amount;
+  if (!unitPriceInput || !quantityInput || !amountInput) return;
 
   state.calcContext = { scope, row: sourceRow };
   elements.calcTitle.textContent = "計算";
@@ -5670,6 +5723,22 @@ function applyCalculationResult() {
       amountInput.value = elements.calcQuantityAmount.value;
     }
     updateSettlementRowAmount(row);
+  } else if (state.calcContext.scope === "mdEntryRow") {
+    const row = state.calcContext.row;
+    if (!row) return;
+    const priceInput = row.querySelector(".md-entry-line-price");
+    const quantityInput = row.querySelector(".md-entry-line-quantity");
+    const amountInput = row.querySelector(".md-entry-line-amount");
+    if (target === "unitPrice") {
+      priceInput.value = result;
+      quantityInput.value = elements.calcPriceQuantity.value;
+      amountInput.value = elements.calcPriceAmount.value;
+    } else {
+      priceInput.value = elements.calcQuantityPrice.value;
+      quantityInput.value = result;
+      amountInput.value = elements.calcQuantityAmount.value;
+    }
+    updateMdEntryLineAmount(row);
   } else {
     const unitPriceInput = editType() === "income" ? elements.editIncomeUnitPrice : elements.editExpenseUnitPrice;
     if (target === "unitPrice") {
@@ -6258,25 +6327,84 @@ function showTab(tab) {
   }
 
   if (tab !== "entry") refreshConfigurationViews();
+  if (tab === "md") ensureMdTabWeeklyMode();
   if (shouldResetScroll) window.scrollTo({ top: 0, left: 0, behavior: "auto" });
 }
 
+function ensureMdTabWeeklyMode() {
+  if (state.periodMode !== "week") setPeriodMode("week");
+}
+
 function handleMdUnlockShortcut(event) {
-  if (!event.altKey || event.ctrlKey || event.metaKey || event.shiftKey) {
-    state.mdUnlockSequence = [];
+  const keyCode = mdUnlockKeyCode(event);
+  if (isMdUnlockModifier(keyCode)) {
+    state.mdUnlockKeys.add(keyCode);
+  }
+  syncMdUnlockModifierKeys(event);
+  if (!hasMdUnlockModifier()) {
+    resetMdUnlockKeys();
     return;
   }
-  const key = event.key.toLowerCase();
-  if (!["r", "o"].includes(key)) return;
-  event.preventDefault();
+  if (event.metaKey) {
+    resetMdUnlockKeys();
+    return;
+  }
+  if (keyCode === "KeyR" || keyCode === "KeyO") {
+    state.mdUnlockKeys.add(keyCode);
+    updateMdUnlockSequence(keyCode);
+    event.preventDefault();
+  }
+  const pressedTogether = hasMdUnlockModifier() && state.mdUnlockKeys.has("KeyR") && state.mdUnlockKeys.has("KeyO");
+  const pressedInOrder = hasMdUnlockModifier() && state.mdUnlockSequence.join("") === "KeyRKeyO";
+  if (!pressedTogether && !pressedInOrder) return;
 
-  const expected = state.mdUnlockSequence.length === 0 ? "r" : "o";
-  state.mdUnlockSequence = key === expected ? [...state.mdUnlockSequence, key] : key === "r" ? ["r"] : [];
-  if (state.mdUnlockSequence.join("") !== "ro") return;
-
-  state.mdUnlockSequence = [];
+  resetMdUnlockKeys();
   unlockMdTab();
   showTab("md");
+}
+
+function updateMdUnlockSequence(keyCode) {
+  const expected = state.mdUnlockSequence.length === 0 ? "KeyR" : "KeyO";
+  state.mdUnlockSequence = keyCode === expected ? [...state.mdUnlockSequence, keyCode] : keyCode === "KeyR" ? ["KeyR"] : [];
+}
+
+function handleMdUnlockKeyRelease(event) {
+  const keyCode = mdUnlockKeyCode(event);
+  if (isMdUnlockModifier(keyCode)) {
+    resetMdUnlockKeys();
+    return;
+  }
+  if (keyCode === "KeyR" || keyCode === "KeyO") state.mdUnlockKeys.delete(keyCode);
+  syncMdUnlockModifierKeys(event);
+  if (!hasMdUnlockModifier()) resetMdUnlockKeys();
+}
+
+function mdUnlockKeyCode(event) {
+  if (event.code === "AltLeft" || event.code === "AltRight" || event.key === "Alt") return "Alt";
+  if (event.code === "ShiftLeft" || event.code === "ShiftRight" || event.key === "Shift") return "Shift";
+  if (event.code === "ControlLeft" || event.code === "ControlRight" || event.key === "Control") return "Control";
+  if (event.code === "KeyR" || String(event.key).toLowerCase() === "r") return "KeyR";
+  if (event.code === "KeyO" || String(event.key).toLowerCase() === "o") return "KeyO";
+  return event.code || event.key || "";
+}
+
+function isMdUnlockModifier(keyCode) {
+  return keyCode === "Alt" || keyCode === "Shift" || keyCode === "Control";
+}
+
+function hasMdUnlockModifier() {
+  return state.mdUnlockKeys.has("Alt") || state.mdUnlockKeys.has("Shift") || state.mdUnlockKeys.has("Control");
+}
+
+function syncMdUnlockModifierKeys(event) {
+  if (event.altKey) state.mdUnlockKeys.add("Alt");
+  if (event.shiftKey) state.mdUnlockKeys.add("Shift");
+  if (event.ctrlKey) state.mdUnlockKeys.add("Control");
+}
+
+function resetMdUnlockKeys() {
+  state.mdUnlockKeys.clear();
+  state.mdUnlockSequence = [];
 }
 
 function unlockMdTab() {
@@ -6322,6 +6450,10 @@ function shiftPeriod(offset) {
 }
 
 function setPeriodMode(mode) {
+  if (mode !== "week" && isMdTabActive()) {
+    updatePeriodLabel();
+    return;
+  }
   if (state.periodMode === mode) return;
   state.periodMode = mode;
   state.periodStart = rangeKey(getRangeStart(new Date()));
@@ -6329,6 +6461,10 @@ function setPeriodMode(mode) {
   updateAxisLimitInputs();
   updatePeriodLabel();
   render();
+}
+
+function isMdTabActive() {
+  return [...elements.tabs].some((button) => button.dataset.tab === "md" && button.classList.contains("active"));
 }
 
 function setupMonthSelectors() {

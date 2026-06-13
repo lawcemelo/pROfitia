@@ -4612,7 +4612,7 @@ label {
 
 #mdEntryForm {
   --edit-accent: var(--green);
-  width: min(820px, calc(100vw - 36px));
+  width: min(980px, calc(100vw - 36px));
   grid-template-columns: minmax(0, 1fr);
   align-items: end;
   overflow-x: hidden;
@@ -4675,13 +4675,38 @@ label {
 
 .md-entry-line {
   display: grid;
-  grid-template-columns: 112px minmax(260px, 1fr) minmax(128px, 154px) minmax(62px, 78px) minmax(128px, 154px) 30px;
+  grid-template-columns: 96px minmax(260px, 1fr) 56px minmax(104px, 126px) minmax(56px, 72px) minmax(112px, 136px) 30px;
   gap: 8px;
   align-items: center;
   border: 1px solid color-mix(in srgb, var(--blue) 22%, var(--line));
   border-radius: 10px;
   background: color-mix(in srgb, var(--blue) 5%, var(--panel-soft));
   padding: 8px;
+}
+
+.md-entry-line-header {
+  min-height: 0;
+  border-color: transparent;
+  background: color-mix(in srgb, var(--blue) 8%, var(--panel-strong));
+  color: var(--muted);
+  padding-block: 6px;
+}
+
+.md-entry-line-header span {
+  min-width: 0;
+  font-size: 0.72rem;
+  font-weight: 900;
+}
+
+.md-entry-line-header span:nth-child(4),
+.md-entry-line-header span:nth-child(5),
+.md-entry-line-header span:nth-child(6) {
+  padding-right: 14px;
+  text-align: right;
+}
+
+.md-entry-line-header span:nth-child(3) {
+  text-align: center;
 }
 
 .md-entry-line.expense-line {
@@ -4713,6 +4738,13 @@ label {
 .md-entry-line-amount {
   color: var(--muted);
   font-weight: 900;
+}
+
+.md-entry-line-calc-button {
+  width: 100%;
+  min-width: 0;
+  padding-inline: 6px;
+  white-space: nowrap;
 }
 
 .md-entry-add-line {
@@ -5606,6 +5638,7 @@ label {
 .md-week-grid {
   overflow: auto;
   min-height: 220px;
+  max-height: clamp(360px, calc(100vh - var(--sticky-top-height, 190px) - 190px), 720px);
   border: 0;
   border-radius: 0;
   background: transparent;
@@ -5657,8 +5690,18 @@ label {
 }
 
 .md-week-head {
+  position: sticky;
+  top: 0;
+  z-index: 4;
   background: color-mix(in srgb, var(--blue) 8%, var(--panel-strong));
   color: var(--ink);
+  box-shadow:
+    0 6px 10px color-mix(in srgb, var(--ink) 8%, transparent),
+    inset 0 1px 0 var(--panel-faint);
+}
+
+.md-week-head.md-sticky-cell {
+  z-index: 5;
 }
 
 .md-draggable-header {
@@ -5796,6 +5839,11 @@ label {
   box-shadow: none;
 }
 
+.md-week-table.readonly .md-run-slot {
+  cursor: not-allowed;
+  opacity: 0.58;
+}
+
 .md-slot-summary {
   color: var(--muted);
   font-size: 0.72rem;
@@ -5918,6 +5966,11 @@ label {
   box-shadow: none;
 }
 
+.md-week-table.readonly .md-run-slot:hover {
+  background: transparent;
+  transform: none;
+}
+
 .md-run-slot:active {
   transform: translateY(0);
   box-shadow: none;
@@ -5973,9 +6026,17 @@ label {
     grid-template-columns: 1fr 1fr;
   }
 
+  .md-entry-line-header {
+    display: none;
+  }
+
   .md-entry-line-item,
   .md-entry-line-amount {
     grid-column: 1 / -1;
+  }
+
+  .md-entry-line-calc-button {
+    justify-self: stretch;
   }
 
   .md-entry-line-delete {
