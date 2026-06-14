@@ -26,6 +26,7 @@ const MD_MONITOR_IMPORTED_STORAGE_KEY = "game-ledger-md-monitor-imported";
 const MD_MONITOR_CHARACTER_STORAGE_KEY = "game-ledger-md-monitor-character";
 const MD_START_TIME_STORAGE_KEY = "game-ledger-md-start-time";
 const MD_START_AT_STORAGE_KEY = "game-ledger-md-start-at";
+const MD_STOPPED_ELAPSED_STORAGE_KEY = "game-ledger-md-stopped-elapsed";
 const MD_RESET_TYPES = {
   daily: { label: "日次", limit: 1 },
   weekly2: { label: "週2", limit: 2 },
@@ -62,6 +63,7 @@ const APP_STORAGE_KEYS = [
   MD_MONITOR_CHARACTER_STORAGE_KEY,
   MD_START_TIME_STORAGE_KEY,
   MD_START_AT_STORAGE_KEY,
+  MD_STOPPED_ELAPSED_STORAGE_KEY,
   LEGACY_ENTRY_STORAGE_KEY,
   LEGACY_MAP_STORAGE_KEY,
 ];
@@ -220,6 +222,7 @@ const state = {
   mdMonitorCharacterId: localStorage.getItem(MD_MONITOR_CHARACTER_STORAGE_KEY) || "",
   mdStartTime: localStorage.getItem(MD_START_TIME_STORAGE_KEY) || "",
   mdStartAt: localStorage.getItem(MD_START_AT_STORAGE_KEY) || "",
+  mdStoppedElapsedMs: Number(localStorage.getItem(MD_STOPPED_ELAPSED_STORAGE_KEY) || 0),
   mdMonitorConnected: false,
   mdMonitorTimer: null,
   mdDrag: null,
@@ -289,6 +292,7 @@ const elements = {
     links: document.querySelector("#linksPanel"),
     characters: document.querySelector("#charactersPanel"),
     mdTagLink: document.querySelector("#mdTagLinkPanel"),
+    mdItemLink: document.querySelector("#mdItemLinkPanel"),
     mdMaster: document.querySelector("#mdMasterPanel"),
     settings: document.querySelector("#settingsPanel"),
   },
@@ -350,10 +354,16 @@ const elements = {
   mdResetType: document.querySelector("#mdResetTypeInput"),
   addMd: document.querySelector("#addMdButton"),
   mdList: document.querySelector("#mdList"),
+  mdItemLinkMd: document.querySelector("#mdItemLinkMdInput"),
+  mdItemLinkItem: document.querySelector("#mdItemLinkItemInput"),
+  mdItemLinkItemSuggestions: document.querySelector("#mdItemLinkItemSuggestions"),
+  addMdItemLink: document.querySelector("#addMdItemLinkButton"),
+  mdItemLinkList: document.querySelector("#mdItemLinkList"),
   mdTagLinkTag: document.querySelector("#mdTagLinkTagInput"),
   mdTagLinkTagChipInput: document.querySelector("#mdTagLinkTagChipInput"),
   mdTagLinkTagChipList: document.querySelector("#mdTagLinkTagChipList"),
   mdTagLinkTagSuggestions: document.querySelector("#mdTagLinkTagSuggestions"),
+  mdTagLinkMap: document.querySelector("#mdTagLinkMapInput"),
   mdTagLinkMd: document.querySelector("#mdTagLinkMdInput"),
   addMdTagLink: document.querySelector("#addMdTagLinkButton"),
   mdLayoutButtons: document.querySelectorAll("[data-md-layout]"),
@@ -361,6 +371,8 @@ const elements = {
   mdMonitorCharacter: document.querySelector("#mdMonitorCharacterInput"),
   mdStartTime: document.querySelector("#mdStartTimeInput"),
   mdStartNow: document.querySelector("#mdStartNowButton"),
+  mdStop: document.querySelector("#mdStopButton"),
+  mdReset: document.querySelector("#mdResetButton"),
   mdElapsedTime: document.querySelector("#mdElapsedTime"),
   mdMonitorConnect: document.querySelector("#mdMonitorConnectButton"),
   mdMonitorFetch: document.querySelector("#mdMonitorFetchButton"),
@@ -684,6 +696,33 @@ function bindEvents() {
   elements.mdIdName.addEventListener("keydown", submitMdOnEnter);
   elements.mdConditionLevel.addEventListener("keydown", submitMdOnEnter);
   elements.mdResetType.addEventListener("keydown", submitMdOnEnter);
+  elements.addMdItemLink.addEventListener("click", addMdItemLink);
+  elements.mdItemLinkMd.addEventListener("change", () => {
+    renderMdItemLinkList();
+    renderMdItemLinkItemSuggestions();
+    updateMdItemLinkAddButton();
+  });
+  elements.mdItemLinkItem.addEventListener("input", renderMdItemLinkItemSuggestions);
+  elements.mdItemLinkItem.addEventListener("input", updateMdItemLinkAddButton);
+  elements.mdItemLinkItem.addEventListener("focus", renderMdItemLinkItemSuggestions);
+  elements.mdItemLinkItem.addEventListener("blur", () => {
+    window.setTimeout(hideMdItemLinkItemSuggestions, 120);
+  });
+  elements.mdItemLinkMd.addEventListener("keydown", submitMdItemLinkOnEnter);
+  elements.mdItemLinkItem.addEventListener("keydown", submitMdItemLinkOnEnter);
+  elements.mdItemLinkItemSuggestions.addEventListener("mousedown", (event) => {
+    event.preventDefault();
+  });
+  elements.mdItemLinkItemSuggestions.addEventListener("click", (event) => {
+    const button = event.target.closest("[data-item]");
+    if (!button) return;
+    selectMdItemLinkItem(button.dataset.item);
+  });
+  elements.mdItemLinkList.addEventListener("click", (event) => {
+    const button = event.target.closest(".delete-md-item-link-button");
+    if (!button) return;
+    deleteMdItemLink(button.dataset.mdId, button.dataset.item);
+  });
   elements.mdList.addEventListener("click", (event) => {
     const visibilityButton = event.target.closest(".md-visibility-button");
     if (visibilityButton) {
@@ -734,19 +773,17 @@ function bindEvents() {
   elements.mdStartTime.addEventListener("change", () => {
     state.mdStartTime = elements.mdStartTime.value;
     state.mdStartAt = "";
+    state.mdStoppedElapsedMs = 0;
     localStorage.setItem(MD_START_TIME_STORAGE_KEY, state.mdStartTime);
     localStorage.removeItem(MD_START_AT_STORAGE_KEY);
+    localStorage.removeItem(MD_STOPPED_ELAPSED_STORAGE_KEY);
     updateMdElapsedTime();
   });
   elements.mdStartNow.addEventListener("click", () => {
-    const startedAt = new Date();
-    state.mdStartTime = timeFromDate(startedAt);
-    state.mdStartAt = startedAt.toISOString();
-    elements.mdStartTime.value = state.mdStartTime;
-    localStorage.setItem(MD_START_TIME_STORAGE_KEY, state.mdStartTime);
-    localStorage.setItem(MD_START_AT_STORAGE_KEY, state.mdStartAt);
-    updateMdElapsedTime();
+    startMdTimer();
   });
+  elements.mdStop.addEventListener("click", stopMdTimer);
+  elements.mdReset.addEventListener("click", resetMdTimer);
   updateMdElapsedTime();
   window.setInterval(updateMdElapsedTime, 1000);
   elements.mdMonitorConnect.addEventListener("click", toggleMdMonitorConnection);
@@ -997,6 +1034,8 @@ function bindEvents() {
 
   elements.addMdTagLink.addEventListener("click", addMdTagLink);
   elements.mdTagLinkTag.addEventListener("keydown", submitMdTagLinkOnEnter);
+  elements.mdTagLinkMap.addEventListener("change", updateMdTagApplyButton);
+  elements.mdTagLinkMap.addEventListener("keydown", submitMdTagLinkOnEnter);
   elements.mdTagLinkMd.addEventListener("change", updateMdTagApplyButton);
   elements.mdTagLinkMd.addEventListener("keydown", submitMdTagLinkOnEnter);
 
@@ -1487,7 +1526,7 @@ function setupSettingsInterfaceGroups() {
   }
 
   settingsContent.append(mdDetails);
-  mdDetails.querySelector(".settings-interface-group-body").append(elements.panels.characters, elements.panels.mdMaster, elements.panels.mdTagLink);
+  mdDetails.querySelector(".settings-interface-group-body").append(elements.panels.characters, elements.panels.mdMaster, elements.panels.mdItemLink, elements.panels.mdTagLink);
 }
 
 function createSettingsInterfaceGroup(id, title) {
@@ -1658,12 +1697,14 @@ function refreshConfigurationViews(selectedMap = elements.linkMap.value) {
   updateEntryMdOptions();
   updateEntryItemOptions();
   updateMdTagLinkOptions();
+  updateMdItemLinkOptions();
   fillUnitPriceFromSelectedItem();
   updateAmount();
   updateLinkOptions(selectedMap);
   renderMapList();
   renderItemList();
   renderLinkList();
+  renderMdItemLinkList();
   updateMdTagApplyButton();
   renderCharacterList();
   renderMdList();
@@ -3034,6 +3075,7 @@ function addMdDungeon() {
     id: crypto.randomUUID(),
     name,
     idName,
+    defaultItems: [],
     resetType,
     periodLimit: mdPeriodLimit({ resetType }),
     conditionLevel,
@@ -3077,7 +3119,7 @@ function renderMdList() {
     row.innerHTML = `
       <strong>${escapeHTML(md.name)}</strong>
       <span>${escapeHTML(md.idName || "-")}</span>
-      <span>${escapeHTML(mdResetLabel(md))} / Lv.${formatLevel(md.conditionLevel)}</span>
+      <span>${escapeHTML(mdResetLabel(md))} / Lv.${formatLevel(md.conditionLevel)} / ${escapeHTML(mdDefaultItemsLabel(md))}</span>
       <button class="md-visibility-button ${md.hiddenFromManagement ? "is-hidden" : ""}" type="button"
         data-id="${escapeHTML(md.id)}"
         aria-label="${md.hiddenFromManagement ? "MD管理に表示" : "MD管理で非表示"}"
@@ -3087,6 +3129,179 @@ function renderMdList() {
     `;
     elements.mdList.append(row);
   }
+}
+
+function parseMdDefaultItems(value) {
+  return normalizeMdDefaultItems(
+    String(value || "")
+      .split(/[\n,、]/)
+      .map((item) => item.trim()),
+  );
+}
+
+function normalizeMdDefaultItems(items) {
+  if (typeof items === "string") return parseMdDefaultItems(items);
+  if (!Array.isArray(items)) return [];
+  return [...new Set(items.map((item) => String(item || "").trim()).filter(Boolean))];
+}
+
+function mdDefaultItemsLabel(md) {
+  const items = normalizeMdDefaultItems(md?.defaultItems);
+  return items.length > 0 ? `明細 ${items.length}件` : "明細未設定";
+}
+
+function addMdItemLink() {
+  const md = state.mdDungeons.find((row) => row.id === elements.mdItemLinkMd.value);
+  const itemName = elements.mdItemLinkItem.value.trim();
+  if (!md || !itemName || !findItem(itemName)) return;
+  const items = normalizeMdDefaultItems(md.defaultItems);
+  if (!items.includes(itemName)) {
+    md.defaultItems = [...items, itemName];
+    saveMdDungeons();
+  }
+  elements.mdItemLinkItem.value = "";
+  hideMdItemLinkItemSuggestions();
+  updateMdItemLinkAddButton();
+  updateMdItemLinkOptions(md.id);
+  renderMdItemLinkList();
+  renderMdList();
+  updateItemHistoryOptions();
+}
+
+function submitMdItemLinkOnEnter(event) {
+  if (event.key !== "Enter") return;
+  event.preventDefault();
+  const firstSuggestion = elements.mdItemLinkItemSuggestions.querySelector("[data-item]");
+  const currentItem = elements.mdItemLinkItem.value.trim();
+  if (!findItem(currentItem) && firstSuggestion) {
+    selectMdItemLinkItem(firstSuggestion.dataset.item);
+    return;
+  }
+  addMdItemLink();
+}
+
+function mdItemLinkItemCandidates(query = "") {
+  const normalizedQuery = query.trim().toLowerCase();
+  const selectedMd = state.mdDungeons.find((row) => row.id === elements.mdItemLinkMd.value);
+  const linkedItems = new Set(normalizeMdDefaultItems(selectedMd?.defaultItems));
+  return state.items
+    .filter((item) => item?.name && !linkedItems.has(item.name))
+    .filter((item) => {
+      if (!normalizedQuery) return true;
+      return item.name.toLowerCase().includes(normalizedQuery);
+    })
+    .sort((a, b) => a.name.localeCompare(b.name, "ja"))
+    .slice(0, 8);
+}
+
+function renderMdItemLinkItemSuggestions() {
+  if (document.activeElement !== elements.mdItemLinkItem) {
+    hideMdItemLinkItemSuggestions();
+    return;
+  }
+  const query = elements.mdItemLinkItem.value.trim();
+  const candidates = mdItemLinkItemCandidates(query);
+  elements.mdItemLinkItemSuggestions.replaceChildren();
+  if (candidates.length === 0) {
+    hideMdItemLinkItemSuggestions();
+    return;
+  }
+  for (const item of candidates) {
+    const button = document.createElement("button");
+    button.type = "button";
+    button.dataset.item = item.name;
+    button.innerHTML = `
+      <strong>${escapeHTML(item.name)}</strong>
+      <span>${yen.format(item.amount)}</span>
+    `;
+    elements.mdItemLinkItemSuggestions.append(button);
+  }
+  elements.mdItemLinkItemSuggestions.classList.remove("hidden");
+}
+
+function hideMdItemLinkItemSuggestions() {
+  elements.mdItemLinkItemSuggestions.classList.add("hidden");
+}
+
+function selectMdItemLinkItem(itemName) {
+  if (!findItem(itemName)) return;
+  elements.mdItemLinkItem.value = itemName;
+  hideMdItemLinkItemSuggestions();
+  updateMdItemLinkAddButton();
+  elements.mdItemLinkItem.focus();
+}
+
+function updateMdItemLinkAddButton() {
+  const md = state.mdDungeons.find((row) => row.id === elements.mdItemLinkMd.value);
+  const item = findItem(elements.mdItemLinkItem.value.trim());
+  const linkedItems = new Set(normalizeMdDefaultItems(md?.defaultItems));
+  elements.addMdItemLink.disabled = !md || !item || linkedItems.has(item.name);
+}
+
+function deleteMdItemLink(mdId, itemName) {
+  const md = state.mdDungeons.find((row) => row.id === mdId);
+  if (!md || !itemName) return;
+  md.defaultItems = normalizeMdDefaultItems(md.defaultItems).filter((item) => item !== itemName);
+  saveMdDungeons();
+  renderMdItemLinkList();
+  renderMdItemLinkItemSuggestions();
+  updateMdItemLinkAddButton();
+  renderMdList();
+  updateItemHistoryOptions();
+}
+
+function updateMdItemLinkOptions(selectedMdId = elements.mdItemLinkMd.value) {
+  setSelectOptionsWithBlank(
+    elements.mdItemLinkMd,
+    state.mdDungeons.map((md) => ({ value: md.id, label: md.name })),
+    "MDを選択",
+  );
+  if (selectedMdId && state.mdDungeons.some((md) => md.id === selectedMdId)) elements.mdItemLinkMd.value = selectedMdId;
+  renderMdItemLinkItemSuggestions();
+  updateMdItemLinkAddButton();
+}
+
+function renderMdItemLinkList() {
+  elements.mdItemLinkList.replaceChildren();
+  const md = state.mdDungeons.find((row) => row.id === elements.mdItemLinkMd.value);
+  if (!md) {
+    elements.mdItemLinkList.textContent = "MDを選択してください";
+    return;
+  }
+
+  const items = normalizeMdDefaultItems(md.defaultItems);
+  if (items.length === 0) {
+    elements.mdItemLinkList.textContent = "MD構成未登録";
+    return;
+  }
+
+  const table = document.createElement("div");
+  table.className = "md-item-link-tree";
+  table.innerHTML = `
+    <div class="md-item-link-group">
+      <span class="link-tree-toggle"></span>
+      <strong>${escapeHTML(md.name)}</strong>
+      <span>${items.length}件</span>
+    </div>
+  `;
+
+  for (const itemName of items) {
+    const item = findItem(itemName);
+    const row = document.createElement("div");
+    row.className = "md-item-link-row";
+    row.innerHTML = `
+      <span></span>
+      <strong>${escapeHTML(itemName)}</strong>
+      <span>${item ? yen.format(item.amount) : "価格未登録"}</span>
+      <button class="delete-md-item-link-button" type="button"
+        data-md-id="${escapeHTML(md.id)}"
+        data-item="${escapeHTML(itemName)}"
+        aria-label="MD構成を削除">×</button>
+    `;
+    table.append(row);
+  }
+
+  elements.mdItemLinkList.append(table);
 }
 
 function toggleMdDungeonVisibility(id, confirmAction = false) {
@@ -3170,10 +3385,27 @@ function openMdEntryModal(mdId, characterId = "", runId = "") {
   if (existingEntries.length > 0) {
     existingEntries.forEach((entry) => addMdEntryLine(entry));
   } else {
-    addMdEntryLine();
+    const defaultRows = mdDefaultEntryRows(md);
+    if (defaultRows.length > 0) {
+      defaultRows.forEach((row) => addMdEntryLine(row));
+    } else {
+      addMdEntryLine();
+    }
   }
   elements.mdEntryModal.classList.remove("hidden");
   window.requestAnimationFrame(() => elements.mdEntryLines.querySelector(".md-entry-line-item")?.focus());
+}
+
+function mdDefaultEntryRows(md) {
+  return normalizeMdDefaultItems(md?.defaultItems).map((itemName) => {
+    const item = findItem(itemName);
+    return {
+      type: "income",
+      item: itemName,
+      unitPrice: item?.amount || 0,
+      quantity: 1,
+    };
+  });
 }
 
 function mdEntriesForRun(run) {
@@ -3222,7 +3454,41 @@ function defaultMdDurationMinutes() {
   return String(Math.max(0, Math.round(elapsedMs / 60000)));
 }
 
+function startMdTimer() {
+  const startedAt = new Date();
+  state.mdStartTime = timeFromDate(startedAt);
+  state.mdStartAt = startedAt.toISOString();
+  state.mdStoppedElapsedMs = 0;
+  elements.mdStartTime.value = state.mdStartTime;
+  localStorage.setItem(MD_START_TIME_STORAGE_KEY, state.mdStartTime);
+  localStorage.setItem(MD_START_AT_STORAGE_KEY, state.mdStartAt);
+  localStorage.removeItem(MD_STOPPED_ELAPSED_STORAGE_KEY);
+  updateMdElapsedTime();
+}
+
+function stopMdTimer() {
+  const elapsedMs = mdElapsedMilliseconds();
+  if (!Number.isFinite(elapsedMs)) return;
+  state.mdStoppedElapsedMs = Math.max(0, elapsedMs);
+  state.mdStartAt = "";
+  localStorage.setItem(MD_STOPPED_ELAPSED_STORAGE_KEY, String(state.mdStoppedElapsedMs));
+  localStorage.removeItem(MD_START_AT_STORAGE_KEY);
+  updateMdElapsedTime();
+}
+
+function resetMdTimer() {
+  state.mdStartTime = "";
+  state.mdStartAt = "";
+  state.mdStoppedElapsedMs = 0;
+  elements.mdStartTime.value = "";
+  localStorage.removeItem(MD_START_TIME_STORAGE_KEY);
+  localStorage.removeItem(MD_START_AT_STORAGE_KEY);
+  localStorage.removeItem(MD_STOPPED_ELAPSED_STORAGE_KEY);
+  updateMdElapsedTime();
+}
+
 function mdElapsedMilliseconds() {
+  if (Number(state.mdStoppedElapsedMs || 0) > 0) return Number(state.mdStoppedElapsedMs);
   if (state.mdStartAt) {
     const startedAt = new Date(state.mdStartAt);
     const startedTime = startedAt.getTime();
@@ -3904,24 +4170,30 @@ function mdResetLabel(md) {
 
 function addMdTagLink() {
   const tags = getTagValues(elements.mdTagLinkTag);
+  const map = elements.mdTagLinkMap.value;
   const mdId = elements.mdTagLinkMd.value;
-  if (tags.length === 0 || !mdId) return;
+  if ((tags.length === 0 && !map) || !mdId) return;
   const md = state.mdDungeons.find((row) => row.id === mdId);
   if (!md) return;
   let changedCount = 0;
   const targetTagSet = new Set(tags);
   for (const entry of state.entries) {
     const entryTags = normalizeTags(entry.tags);
-    if (!entryTags.some((tag) => targetTagSet.has(tag))) continue;
+    const matchesTag = targetTagSet.size > 0 && entryTags.some((tag) => targetTagSet.has(tag));
+    const matchesMap = Boolean(map && entry.map === map);
+    if (!matchesTag && !matchesMap) continue;
     entry.mdId = md.id;
     entry.mdName = md.name;
     changedCount += 1;
   }
   setTagValues(elements.mdTagLinkTag, elements.mdTagLinkTagChipList, []);
+  elements.mdTagLinkMap.value = "";
   saveEntries();
   refreshConfigurationViews();
-  const tagLabel = targetTagSet.size > 1 ? `${tags.join(", ")}（複数）` : tags[0];
-  window.alert(`${tagLabel} のタグを含む明細 ${changedCount}件をMD「${md.name}」へ紐づけしました。`);
+  const conditions = [];
+  if (targetTagSet.size > 0) conditions.push(`タグ ${tags.join(", ")}`);
+  if (map) conditions.push(`グループ ${map}`);
+  window.alert(`${conditions.join(" または ")} に一致する明細 ${changedCount}件をMD「${md.name}」へ紐づけしました。`);
   renderSummaryViews();
   renderItemSearchResults();
 }
@@ -3934,17 +4206,27 @@ function submitMdTagLinkOnEnter(event) {
 }
 
 function updateMdTagApplyButton() {
-  const enabled = Boolean(getTagValues(elements.mdTagLinkTag).length > 0 && elements.mdTagLinkMd.value);
+  const enabled = Boolean((getTagValues(elements.mdTagLinkTag).length > 0 || elements.mdTagLinkMap.value) && elements.mdTagLinkMd.value);
   elements.addMdTagLink.disabled = !enabled;
 }
 
 function updateMdTagLinkOptions() {
+  const selectedMap = elements.mdTagLinkMap.value;
+  const selectedMdId = elements.mdTagLinkMd.value;
+  setSelectOptionsWithBlank(
+    elements.mdTagLinkMap,
+    state.maps.map((map) => ({ value: map, label: map })),
+    "グループを選択",
+    false,
+  );
+  if (selectedMap && state.maps.includes(selectedMap)) elements.mdTagLinkMap.value = selectedMap;
   setSelectOptionsWithBlank(
     elements.mdTagLinkMd,
     state.mdDungeons.map((md) => ({ value: md.id, label: md.name })),
     "MD未登録",
     true,
   );
+  if (selectedMdId && state.mdDungeons.some((md) => md.id === selectedMdId)) elements.mdTagLinkMd.value = selectedMdId;
 }
 
 function renderLinkList() {
@@ -4832,6 +5114,7 @@ function itemHistoryNames() {
         ...state.items.map((item) => item.name),
         ...state.entries.map((entry) => entry.item),
         ...state.plannedPurchases.map((planned) => planned.item),
+        ...state.mdDungeons.flatMap((md) => normalizeMdDefaultItems(md.defaultItems)),
       ]
         .map((name) => String(name || "").trim())
         .filter(Boolean),
@@ -6209,8 +6492,12 @@ function deleteMasterEdit() {
     for (const map of Object.keys(state.links)) {
       state.links[map] = state.links[map].filter((item) => item !== name);
     }
+    for (const md of state.mdDungeons) {
+      md.defaultItems = normalizeMdDefaultItems(md.defaultItems).filter((item) => item !== name);
+    }
     saveItems();
     saveLinks();
+    saveMdDungeons();
   } else if (type === "character") {
     deleteCharacter(name);
   } else if (type === "md") {
@@ -6252,10 +6539,14 @@ function renameItem(oldName, newName, amount) {
   for (const entry of state.entries) {
     if (entry.item === oldName) entry.item = newName;
   }
+  for (const md of state.mdDungeons) {
+    md.defaultItems = normalizeMdDefaultItems(normalizeMdDefaultItems(md.defaultItems).map((itemName) => (itemName === oldName ? newName : itemName)));
+  }
 
   saveItems();
   saveLinks();
   saveEntries();
+  saveMdDungeons();
 }
 
 function renameCharacter(id, newName, job, level, icon) {
@@ -6275,7 +6566,7 @@ function renameCharacter(id, newName, job, level, icon) {
   saveMdRuns();
 }
 
-function renameMdDungeon(id, newName, idName, resetType, conditionLevel) {
+function renameMdDungeon(id, newName, idName, resetType, conditionLevel, defaultItems = null) {
   const md = state.mdDungeons.find((row) => row.id === id);
   if (!md) return;
   if (md.name !== newName && state.mdDungeons.some((candidate) => candidate.name === newName)) return;
@@ -6286,6 +6577,7 @@ function renameMdDungeon(id, newName, idName, resetType, conditionLevel) {
   md.resetType = normalizeMdResetType(resetType);
   md.periodLimit = mdPeriodLimit(md);
   md.conditionLevel = parseLevelValue(conditionLevel);
+  if (defaultItems !== null) md.defaultItems = normalizeMdDefaultItems(defaultItems);
   for (const entry of state.entries) {
     if (entry.mdId === id) entry.mdName = newName;
   }
@@ -6316,7 +6608,7 @@ function showTab(tab) {
   });
 
   Object.entries(elements.panels).forEach(([name, panel]) => {
-    const isSettingsGroup = tab === "settings" && ["maps", "items", "links", "characters", "mdTagLink", "mdMaster", "settings"].includes(name);
+    const isSettingsGroup = tab === "settings" && ["maps", "items", "links", "characters", "mdTagLink", "mdItemLink", "mdMaster", "settings"].includes(name);
     panel.classList.toggle("active", name === tab || isSettingsGroup);
   });
   if (tab === "settings" && ![...elements.settingsAnchors].some((button) => button.classList.contains("active"))) {
@@ -6425,7 +6717,7 @@ function scrollToSettingsBlock(targetId) {
   const group = target.closest(".settings-interface-group");
   if (group) group.open = true;
   if (["mapsPanel", "itemsPanel", "linksPanel"].includes(targetId)) document.querySelector("#settingsGroupManagement")?.setAttribute("open", "");
-  if (["charactersPanel", "mdMasterPanel", "mdTagLinkPanel"].includes(targetId)) document.querySelector("#settingsMdManagement")?.setAttribute("open", "");
+  if (["charactersPanel", "mdMasterPanel", "mdItemLinkPanel", "mdTagLinkPanel"].includes(targetId)) document.querySelector("#settingsMdManagement")?.setAttribute("open", "");
   elements.settingsAnchors.forEach((button) => {
     button.classList.toggle("active", button.dataset.settingsTarget === targetId);
   });
@@ -6975,6 +7267,7 @@ function normalizeMdDungeons(dungeons) {
         id: String(md.id || crypto.randomUUID()),
         name: String(md.name),
         idName: String(md.idName || md.code || md.name),
+        defaultItems: normalizeMdDefaultItems(md.defaultItems || md.items),
         resetType,
         periodLimit: mdPeriodLimit({ resetType }),
         conditionLevel: parseLevelValue(md.conditionLevel),

@@ -519,7 +519,9 @@
                 開始時間
                 <input id="mdStartTimeInput" type="time" />
               </label>
-              <button class="secondary-button" id="mdStartNowButton" type="button">開始セット</button>
+              <button class="secondary-button" id="mdStartNowButton" type="button">START</button>
+              <button class="secondary-button" id="mdStopButton" type="button">STOP</button>
+              <button class="secondary-button" id="mdResetButton" type="button">RESET</button>
               <span class="md-elapsed-time" id="mdElapsedTime" aria-live="polite">経過 --分</span>
               <button class="secondary-button md-monitor-hidden-control" id="mdMonitorConnectButton" type="button">監視接続</button>
               <button class="secondary-button md-monitor-hidden-control" id="mdMonitorFetchButton" type="button">検出ログ読取</button>
@@ -545,7 +547,8 @@
               <summary>MD管理</summary>
               <button type="button" data-settings-target="charactersPanel">キャラクター</button>
               <button type="button" data-settings-target="mdMasterPanel">MD</button>
-              <button type="button" data-settings-target="mdTagLinkPanel">タグMD反映</button>
+              <button type="button" data-settings-target="mdItemLinkPanel">MD構成</button>
+              <button type="button" data-settings-target="mdTagLinkPanel">タグ/グループMD反映</button>
             </details>
             <button type="button" data-settings-target="settingsPanel">色テーマ</button>
             <button type="button" data-settings-target="backupPanel">バックアップ</button>
@@ -654,26 +657,53 @@
         </section>
       </section>
 
-      <section class="tab-panel" id="mdTagLinkPanel">
-        <section class="settings-panel game-master-panel" aria-label="タグMD反映">
+      <section class="tab-panel" id="mdItemLinkPanel">
+        <section class="settings-panel game-master-panel" aria-label="MD構成登録">
           <div class="settings-header">
             <div>
-              <p class="market-eyebrow">Tag MD Apply</p>
-              <h2>タグMD反映</h2>
-              <p class="settings-description">登録済データの指定タグを、選択したMDとして一括登録します。</p>
+              <p class="market-eyebrow">MD Item Link</p>
+              <h2>MD構成</h2>
+            </div>
+          </div>
+          <div class="settings-grid md-item-link-entry-grid">
+            <select id="mdItemLinkMdInput" aria-label="MD"></select>
+            <label class="md-item-link-item-field">
+              <span class="visually-hidden">アイテム</span>
+              <input id="mdItemLinkItemInput" type="text" inputmode="text" maxlength="32" placeholder="アイテムマスタから選択" autocomplete="off" />
+              <div class="md-item-suggestion-list hidden" id="mdItemLinkItemSuggestions"></div>
+            </label>
+            <button class="secondary-button" id="addMdItemLinkButton" type="button" disabled>構成に追加</button>
+          </div>
+          <div class="management-list md-item-link-list" id="mdItemLinkList"></div>
+        </section>
+      </section>
+
+      <section class="tab-panel" id="mdTagLinkPanel">
+        <section class="settings-panel game-master-panel" aria-label="タグ/グループMD反映">
+          <div class="settings-header">
+            <div>
+              <p class="market-eyebrow">Condition MD Apply</p>
+              <h2>タグ/グループMD反映</h2>
+              <p class="settings-description">登録済データの指定タグまたはグループを、選択したMDとして一括登録します。</p>
             </div>
           </div>
           <div class="settings-grid md-tag-link-entry-grid">
-            <label class="tag-field">
-              <span class="visually-hidden">タグ</span>
-              <div class="tag-chip-input" id="mdTagLinkTagChipInput">
-                <div class="tag-chip-list" id="mdTagLinkTagChipList"></div>
-                <input id="mdTagLinkTagInput" type="text" inputmode="text" maxlength="40" placeholder="#タグ" />
-              </div>
-              <div class="tag-suggestion-list hidden" id="mdTagLinkTagSuggestions"></div>
-            </label>
-            <select id="mdTagLinkMdInput" aria-label="MD"></select>
-            <button class="secondary-button" id="addMdTagLinkButton" type="button" disabled>変換</button>
+            <div class="md-condition-stack">
+              <label class="tag-field">
+                <span class="visually-hidden">タグ</span>
+                <div class="tag-chip-input" id="mdTagLinkTagChipInput">
+                  <div class="tag-chip-list" id="mdTagLinkTagChipList"></div>
+                  <input id="mdTagLinkTagInput" type="text" inputmode="text" maxlength="40" placeholder="#タグ" />
+                </div>
+                <div class="tag-suggestion-list hidden" id="mdTagLinkTagSuggestions"></div>
+              </label>
+              <select id="mdTagLinkMapInput" aria-label="グループ"></select>
+            </div>
+            <div class="md-apply-arrow" aria-hidden="true">➡</div>
+            <div class="md-apply-target">
+              <select id="mdTagLinkMdInput" aria-label="MD"></select>
+              <button class="secondary-button" id="addMdTagLinkButton" type="button" disabled>一括変換</button>
+            </div>
           </div>
         </section>
       </section>
@@ -720,7 +750,7 @@
       <footer class="app-footer">
         <span>© 2026 lawcemelo. All rights reserved.</span>
         <span>
-          pROfitia 収支管理支援アプリ / Version 1.0.5
+          pROfitia 収支管理支援アプリ / Version 1.0.6
           <a href="guide.html" target="_blank" rel="noopener noreferrer">説明</a>
         </span>
       </footer>
