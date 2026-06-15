@@ -4182,6 +4182,22 @@ label {
   gap: 6px;
 }
 
+.md-summary-breakdown-toggle {
+  width: 100%;
+  background: transparent;
+  border-right: 0;
+  border-left: 0;
+  font-family: inherit;
+  cursor: pointer;
+  line-height: 1.35;
+  text-align: left;
+}
+
+.md-summary-breakdown-toggle:hover {
+  background-color: color-mix(in srgb, var(--blue) 7%, var(--panel));
+  color: var(--ink);
+}
+
 .md-summary-details {
   display: grid;
   grid-template-columns: 42px minmax(120px, 1fr) minmax(130px, auto) minmax(92px, auto);
@@ -4477,6 +4493,27 @@ label {
   font-size: 0.86rem;
   font-weight: 800;
   padding: 5px 6px;
+}
+
+.summary-breakdown-block {
+  display: grid;
+  gap: 6px;
+}
+
+.summary-breakdown-toggle {
+  width: 100%;
+  background: transparent;
+  border-right: 0;
+  border-left: 0;
+  font-family: inherit;
+  cursor: pointer;
+  line-height: 1.35;
+  text-align: left;
+}
+
+.summary-breakdown-toggle:hover {
+  background-color: color-mix(in srgb, var(--blue) 7%, var(--panel));
+  color: var(--ink);
 }
 
 .breakdown-row-head {
@@ -5690,7 +5727,7 @@ body.md-fullscreen-mode .app-shell {
   z-index: 9999;
   display: block;
   width: 100vw;
-  height: 100dvh;
+  height: var(--md-fullscreen-height, 100vh);
   margin: 0;
   overflow: hidden;
   background: var(--bg);
@@ -5698,8 +5735,10 @@ body.md-fullscreen-mode .app-shell {
 
 #mdPanel.md-fullscreen-active .md-panel {
   height: 100%;
-  display: grid;
-  grid-template-rows: auto auto minmax(0, 1fr);
+  min-height: 0;
+  position: relative;
+  display: block;
+  overflow: hidden;
   gap: 12px;
   border: 0;
   border-radius: 0;
@@ -5711,16 +5750,25 @@ body.md-fullscreen-mode .app-shell {
 }
 
 #mdPanel.md-fullscreen-active .md-control-row {
+  margin-top: 12px;
   gap: 10px;
 }
 
 #mdPanel.md-fullscreen-active .md-board-section {
+  position: absolute;
+  top: var(--md-fullscreen-board-top, 148px);
+  right: 12px;
+  bottom: 12px;
+  left: 12px;
+  display: flex;
+  flex-direction: column;
   min-height: 0;
   padding: 10px;
 }
 
 #mdPanel.md-fullscreen-active .md-week-grid {
-  height: 100%;
+  flex: 1 1 auto;
+  height: auto;
   min-height: 0;
   max-height: none;
   outline: none;

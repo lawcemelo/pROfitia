@@ -675,7 +675,11 @@ function bindEvents() {
   document.addEventListener("keydown", handleMdUnlockShortcut);
   document.addEventListener("keyup", handleMdUnlockKeyRelease);
   window.addEventListener("blur", resetMdUnlockKeys);
-  window.addEventListener("resize", updateStickyTopHeight);
+  window.addEventListener("resize", () => {
+    updateStickyTopHeight();
+    updateMdFullscreenSize();
+  });
+  window.visualViewport?.addEventListener("resize", updateMdFullscreenSize);
 
   elements.addCharacter.addEventListener("click", addCharacter);
   elements.characterName.addEventListener("keydown", submitCharacterOnEnter);
@@ -4398,8 +4402,8 @@ function renderSummaryDetail() {
     );
   } else {
     grid.append(
-      createBreakdownPanel("タグ別収支", aggregateByTag(entries), "タグ別収支"),
-      createBreakdownPanel("アイテム/項目別収支", aggregateByItem(entries), "アイテム/項目別収支"),
+      createBreakdownPanel("タグ別収支", aggregateByTag(entries), "タグ別収支", "件数", entries, "tag"),
+      createBreakdownPanel("アイテム/項目別収支", aggregateByItem(entries), "アイテム/項目別収支", "件数", entries, "item"),
     );
   }
   elements.summaryDetail.append(grid);
@@ -4685,7 +4689,7 @@ function breakdownSortValue(row, key) {
   }
 }
 
-function createBreakdownPanel(title, rows, emptyText, countLabel = "件数") {
+function createBreakdownPanel(title, rows, emptyText, countLabel = "件数", entries = [], panelKey = "") {
   const panel = document.createElement("section");
   panel.className = "breakdown-panel";
 
@@ -4714,20 +4718,58 @@ function createBreakdownPanel(title, rows, emptyText, countLabel = "件数") {
 
   for (const row of rows) {
     const item = document.createElement("div");
-    item.className = "breakdown-row";
+    item.className = "summary-breakdown-block";
+    const expandKey = panelKey ? mdSummaryExpandKey(`summary-${panelKey}`, row.label) : "";
+    const expanded = expandKey && state.expandedMdSummaryRows.has(expandKey);
     item.innerHTML = `
-      <span>${escapeHTML(row.label)}</span>
-      <span class="breakdown-count">${formatQuantity(row.count)}</span>
-      <strong class="${row.amount < 0 ? "expense-text" : "income-text"}">${formatSignedYen(row.amount)}</strong>
-      <div class="breakdown-track net-breakdown-track">
-        <div class="breakdown-zero-line"></div>
-        <div class="breakdown-fill ${row.amount < 0 ? "negative" : ""}" style="width: ${(Math.abs(row.amount) / max) * 50}%; ${row.amount < 0 ? "right: 50%;" : "left: 50%;"}"></div>
-      </div>
+      <button class="breakdown-row summary-breakdown-toggle md-summary-toggle" type="button" data-md-key="${escapeHTML(expandKey)}" aria-expanded="${expanded}">
+        <span>${escapeHTML(row.label)}</span>
+        <span class="breakdown-count">${formatQuantity(row.count)}</span>
+        <strong class="${row.amount < 0 ? "expense-text" : "income-text"}">${formatSignedYen(row.amount)}</strong>
+        <div class="breakdown-track net-breakdown-track">
+          <div class="breakdown-zero-line"></div>
+          <div class="breakdown-fill ${row.amount < 0 ? "negative" : ""}" style="width: ${(Math.abs(row.amount) / max) * 50}%; ${row.amount < 0 ? "right: 50%;" : "left: 50%;"}"></div>
+        </div>
+      </button>
+      ${expanded ? renderSummaryBreakdownDetails(row.label, entries, panelKey) : ""}
     `;
     panel.append(item);
   }
 
   return panel;
+}
+
+function renderSummaryBreakdownDetails(label, entries, panelKey) {
+  const rows = entries
+    .filter((entry) => summaryBreakdownEntryMatches(entry, label, panelKey))
+    .sort(compareEntriesNewestFirst);
+  if (!rows.length) return `<div class="md-summary-details empty">該当明細がありません</div>`;
+  return `
+    <div class="md-summary-details">
+      ${rows.map((entry) => `
+        <span>${escapeHTML(formatDate(entry.date))}</span>
+        <strong>${escapeHTML(entry.item || "未設定")}</strong>
+        <small>${escapeHTML(summaryBreakdownDetailText(entry))}</small>
+        <em class="${entry.type === "income" ? "income-text" : "expense-text"}">${entry.type === "income" ? "+" : "-"}${yen.format(entry.amount)}</em>
+      `).join("")}
+    </div>
+  `;
+}
+
+function summaryBreakdownEntryMatches(entry, label, panelKey) {
+  if (panelKey === "tag") {
+    const tags = normalizeTags(entry.tags);
+    return label === "無タグ" ? tags.length === 0 : tags.includes(label);
+  }
+  if (panelKey === "item") return (entry.item || "項目未設定") === label;
+  return false;
+}
+
+function summaryBreakdownDetailText(entry) {
+  const parts = [`数量${formatQuantity(entryQuantity(entry))}`, `単価 ${yen.format(entry.unitPrice || 0)}`];
+  const mdName = entryMdName(entry);
+  if (mdName) parts.push(`MD ${mdName}`);
+  return parts.join(" / ");
 }
 
 function renderSimpleList(target, values, emptyText) {
@@ -5579,15 +5621,19 @@ function createMdComparisonPanel(title, rows, entries, valueLabel, panelKey) {
   for (const row of rows) {
     const expandKey = mdSummaryExpandKey(panelKey, row.label);
     const expanded = state.expandedMdSummaryRows.has(expandKey);
+    const width = Math.max(3, (Math.max(row.amount, 0) / max) * 50);
+    const count = valueLabel === "時給" ? `${formatQuantity(row.count || 0)}h` : formatQuantity(row.count || 0);
     const wrapper = document.createElement("div");
     wrapper.className = `md-summary-block${expanded ? " expanded" : ""}`;
     wrapper.innerHTML = `
-      <button class="md-chart-row md-summary-toggle" type="button" data-md-key="${escapeHTML(expandKey)}" data-md-label="${escapeHTML(row.label)}" aria-expanded="${expanded}">
+      <button class="breakdown-row md-summary-toggle md-summary-breakdown-toggle" type="button" data-md-key="${escapeHTML(expandKey)}" data-md-label="${escapeHTML(row.label)}" aria-expanded="${expanded}">
         <span>${escapeHTML(row.label)}</span>
-        <div class="md-chart-track">
-          <div class="md-chart-fill" style="width: ${Math.max(3, (Math.max(row.amount, 0) / max) * 100)}%"></div>
+        <span class="breakdown-count">${escapeHTML(count)}</span>
+        <strong class="${row.amount < 0 ? "expense-text" : "income-text"}">${valueLabel === "時給" ? `${yen.format(row.amount)}/h` : formatSignedYen(row.amount)}</strong>
+        <div class="breakdown-track net-breakdown-track">
+          <div class="breakdown-zero-line"></div>
+          <div class="breakdown-fill ${row.amount < 0 ? "negative" : ""}" style="width: ${width}%; ${row.amount < 0 ? "right: 50%;" : "left: 50%;"}"></div>
         </div>
-        <strong>${valueLabel === "時給" ? `${yen.format(row.amount)}/h` : formatSignedYen(row.amount)}</strong>
       </button>
       ${expanded ? renderMdSummaryDetails(row.label, entries) : ""}
     `;
@@ -6632,6 +6678,7 @@ function showTab(tab) {
 
 function setMdFullscreen(enabled) {
   state.mdFullscreen = Boolean(enabled);
+  updateMdFullscreenSize();
   document.documentElement.classList.toggle("md-fullscreen-mode", state.mdFullscreen);
   document.body.classList.toggle("md-fullscreen-mode", state.mdFullscreen);
   elements.md?.classList.toggle("md-fullscreen-active", state.mdFullscreen);
@@ -6640,8 +6687,31 @@ function setMdFullscreen(enabled) {
     elements.mdFullscreenToggle.setAttribute("aria-pressed", String(state.mdFullscreen));
   }
   if (state.mdFullscreen) {
-    requestAnimationFrame(() => elements.mdWeekGrid?.focus({ preventScroll: true }));
+    requestAnimationFrame(() => {
+      updateMdFullscreenSize();
+      elements.mdWeekGrid?.focus({ preventScroll: true });
+      requestAnimationFrame(updateMdFullscreenSize);
+    });
+  } else {
+    document.documentElement.style.removeProperty("--md-fullscreen-height");
+    document.documentElement.style.removeProperty("--md-fullscreen-board-top");
   }
+}
+
+function updateMdFullscreenSize() {
+  const height = Math.round(window.visualViewport?.height || window.innerHeight || 0);
+  if (height > 0) document.documentElement.style.setProperty("--md-fullscreen-height", `${height}px`);
+  if (!state.mdFullscreen || !elements.md) return;
+  const panel = elements.md.querySelector(".md-panel");
+  const header = elements.md.querySelector(".market-header");
+  const controls = elements.md.querySelector(".md-control-row");
+  const panelStyle = panel ? getComputedStyle(panel) : null;
+  const gap = Number.parseFloat(panelStyle?.gap || panelStyle?.rowGap || 0) || 0;
+  const paddingTop = Number.parseFloat(panelStyle?.paddingTop || 0) || 0;
+  const headerHeight = Math.ceil(header?.getBoundingClientRect().height || 0);
+  const controlHeight = Math.ceil(controls?.getBoundingClientRect().height || 0);
+  const boardTop = Math.max(96, paddingTop + headerHeight + controlHeight + gap * 2);
+  document.documentElement.style.setProperty("--md-fullscreen-board-top", `${Math.ceil(boardTop)}px`);
 }
 
 function ensureMdTabWeeklyMode() {
