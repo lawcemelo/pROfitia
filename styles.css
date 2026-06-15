@@ -5629,6 +5629,17 @@ label {
   gap: 16px;
 }
 
+.md-header-actions {
+  display: inline-flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+.market-header > .md-header-actions {
+  display: inline-flex;
+}
+
 .md-layout-toggle {
   display: inline-flex;
   flex-direction: row;
@@ -5644,6 +5655,75 @@ label {
 
 .market-header > .md-layout-toggle {
   display: inline-flex;
+}
+
+.md-fullscreen-toggle {
+  min-height: 40px;
+  padding: 8px 14px;
+  font-size: 0.8rem;
+}
+
+html.md-fullscreen-mode {
+  overflow: hidden;
+  scrollbar-gutter: auto;
+}
+
+body.md-fullscreen-mode {
+  overflow: hidden;
+}
+
+body.md-fullscreen-mode .sticky-top,
+body.md-fullscreen-mode .app-footer {
+  display: none;
+}
+
+body.md-fullscreen-mode .app-shell {
+  width: 100vw;
+  max-width: none;
+  margin: 0;
+  padding: 0;
+}
+
+#mdPanel.md-fullscreen-active {
+  position: fixed;
+  inset: 0;
+  z-index: 9999;
+  display: block;
+  width: 100vw;
+  height: 100dvh;
+  margin: 0;
+  overflow: hidden;
+  background: var(--bg);
+}
+
+#mdPanel.md-fullscreen-active .md-panel {
+  height: 100%;
+  display: grid;
+  grid-template-rows: auto auto minmax(0, 1fr);
+  gap: 12px;
+  border: 0;
+  border-radius: 0;
+  padding: 12px;
+}
+
+#mdPanel.md-fullscreen-active .market-header {
+  padding-bottom: 10px;
+}
+
+#mdPanel.md-fullscreen-active .md-control-row {
+  gap: 10px;
+}
+
+#mdPanel.md-fullscreen-active .md-board-section {
+  min-height: 0;
+  padding: 10px;
+}
+
+#mdPanel.md-fullscreen-active .md-week-grid {
+  height: 100%;
+  min-height: 0;
+  max-height: none;
+  outline: none;
 }
 
 .md-action-guide {
@@ -6128,6 +6208,10 @@ label {
 
   .md-apply-arrow {
     transform: rotate(90deg);
+  }
+
+  .md-header-actions {
+    flex-wrap: wrap;
   }
 
   .md-control-row {

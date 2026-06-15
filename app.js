@@ -225,6 +225,7 @@ const state = {
   mdStoppedElapsedMs: Number(localStorage.getItem(MD_STOPPED_ELAPSED_STORAGE_KEY) || 0),
   mdMonitorConnected: false,
   mdMonitorTimer: null,
+  mdFullscreen: false,
   mdDrag: null,
   mdUnlockKeys: new Set(),
   mdUnlockSequence: [],
@@ -377,6 +378,7 @@ const elements = {
   mdMonitorConnect: document.querySelector("#mdMonitorConnectButton"),
   mdMonitorFetch: document.querySelector("#mdMonitorFetchButton"),
   mdMonitorStatus: document.querySelector("#mdMonitorStatus"),
+  mdFullscreenToggle: document.querySelector("#mdFullscreenToggleButton"),
   mdWeekGrid: document.querySelector("#mdWeekGrid"),
   itemHistoryOptions: document.querySelector("#itemHistoryOptions"),
   linkMap: document.querySelector("#linkMapInput"),
@@ -784,10 +786,14 @@ function bindEvents() {
   });
   elements.mdStop.addEventListener("click", stopMdTimer);
   elements.mdReset.addEventListener("click", resetMdTimer);
+  elements.mdFullscreenToggle.addEventListener("click", () => setMdFullscreen(!state.mdFullscreen));
   updateMdElapsedTime();
   window.setInterval(updateMdElapsedTime, 1000);
   elements.mdMonitorConnect.addEventListener("click", toggleMdMonitorConnection);
   elements.mdMonitorFetch.addEventListener("click", fetchMdMonitorEvents);
+  document.addEventListener("keydown", (event) => {
+    if (event.key === "Escape" && state.mdFullscreen) setMdFullscreen(false);
+  });
 
   elements.targetBalanceButton.addEventListener("click", () => {
     const isWeek = state.periodMode === "week";
@@ -6620,7 +6626,22 @@ function showTab(tab) {
 
   if (tab !== "entry") refreshConfigurationViews();
   if (tab === "md") ensureMdTabWeeklyMode();
+  if (tab !== "md") setMdFullscreen(false);
   if (shouldResetScroll) window.scrollTo({ top: 0, left: 0, behavior: "auto" });
+}
+
+function setMdFullscreen(enabled) {
+  state.mdFullscreen = Boolean(enabled);
+  document.documentElement.classList.toggle("md-fullscreen-mode", state.mdFullscreen);
+  document.body.classList.toggle("md-fullscreen-mode", state.mdFullscreen);
+  elements.md?.classList.toggle("md-fullscreen-active", state.mdFullscreen);
+  if (elements.mdFullscreenToggle) {
+    elements.mdFullscreenToggle.textContent = state.mdFullscreen ? "戻す" : "全画面";
+    elements.mdFullscreenToggle.setAttribute("aria-pressed", String(state.mdFullscreen));
+  }
+  if (state.mdFullscreen) {
+    requestAnimationFrame(() => elements.mdWeekGrid?.focus({ preventScroll: true }));
+  }
 }
 
 function ensureMdTabWeeklyMode() {
