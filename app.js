@@ -514,11 +514,11 @@ const elements = {
   editMd: document.querySelector("#editMdInput"),
   editItem: document.querySelector("#editItemInput"),
   editItemSelect: document.querySelector("#editItemSelect"),
-  editIncomePriceField: document.querySelector(".edit-income-price-field"),
+  editIncomePriceField: document.querySelector("#editForm .edit-income-price-field"),
   editIncomeUnitPrice: document.querySelector("#editIncomeUnitPriceInput"),
   editExpenseName: document.querySelector("#editExpenseNameInput"),
   editExpenseNameSelect: document.querySelector("#editExpenseNameSelect"),
-  editExpensePriceField: document.querySelector(".edit-expense-price-field"),
+  editExpensePriceField: document.querySelector("#editForm .edit-expense-price-field"),
   editExpenseUnitPrice: document.querySelector("#editExpenseUnitPriceInput"),
   editQuantity: document.querySelector("#editQuantityInput"),
   editCalcAssist: document.querySelector("#editCalcAssistButton"),
@@ -6404,6 +6404,8 @@ function updateEditMode() {
   elements.editIncomePriceField.classList.toggle("hidden", !isIncome);
   elements.editExpensePriceField.classList.toggle("hidden", isIncome);
   updateEditInputMode();
+  elements.editIncomeUnitPrice.disabled = !isIncome;
+  elements.editExpenseUnitPrice.disabled = isIncome;
   elements.editIncomeUnitPrice.toggleAttribute("required", isIncome);
   elements.editExpenseUnitPrice.toggleAttribute("required", !isIncome);
 }

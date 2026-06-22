@@ -4758,6 +4758,11 @@ label {
   --edit-accent: var(--amber);
 }
 
+#editForm.edit-type-income .edit-expense-price-field,
+#editForm.edit-type-expense .edit-income-price-field {
+  display: none !important;
+}
+
 #mdEntryForm {
   --edit-accent: var(--green);
   width: min(980px, calc(100vw - 36px));
