@@ -17,6 +17,8 @@ const MONTHLY_BAR_AXIS_MAX_STORAGE_KEY = "game-ledger-monthly-bar-axis-max";
 const MONTHLY_NET_AXIS_MAX_STORAGE_KEY = "game-ledger-monthly-net-axis-max";
 const WEEKLY_MD_AXIS_MAX_STORAGE_KEY = "game-ledger-weekly-md-axis-max";
 const MONTHLY_MD_AXIS_MAX_STORAGE_KEY = "game-ledger-monthly-md-axis-max";
+const WEEKLY_TREND_COUNT_STORAGE_KEY = "game-ledger-weekly-trend-count";
+const MONTHLY_TREND_COUNT_STORAGE_KEY = "game-ledger-monthly-trend-count";
 const CHARACTER_STORAGE_KEY = "game-ledger-characters";
 const MD_STORAGE_KEY = "game-ledger-md-list";
 const MD_RUN_STORAGE_KEY = "game-ledger-md-runs";
@@ -54,6 +56,8 @@ const APP_STORAGE_KEYS = [
   MONTHLY_NET_AXIS_MAX_STORAGE_KEY,
   WEEKLY_MD_AXIS_MAX_STORAGE_KEY,
   MONTHLY_MD_AXIS_MAX_STORAGE_KEY,
+  WEEKLY_TREND_COUNT_STORAGE_KEY,
+  MONTHLY_TREND_COUNT_STORAGE_KEY,
   CHARACTER_STORAGE_KEY,
   MD_STORAGE_KEY,
   MD_RUN_STORAGE_KEY,
@@ -268,6 +272,8 @@ const state = {
   monthlyNetAxisMax: Number(localStorage.getItem(MONTHLY_NET_AXIS_MAX_STORAGE_KEY) || localStorage.getItem(NET_AXIS_MAX_STORAGE_KEY) || 0),
   weeklyMdAxisMax: Number(localStorage.getItem(WEEKLY_MD_AXIS_MAX_STORAGE_KEY) || 0),
   monthlyMdAxisMax: Number(localStorage.getItem(MONTHLY_MD_AXIS_MAX_STORAGE_KEY) || 0),
+  weeklyTrendCount: clampTrendPeriodCount(localStorage.getItem(WEEKLY_TREND_COUNT_STORAGE_KEY) || 12),
+  monthlyTrendCount: clampTrendPeriodCount(localStorage.getItem(MONTHLY_TREND_COUNT_STORAGE_KEY) || 12),
 };
 
 const elements = {
@@ -403,6 +409,8 @@ const elements = {
   summaryFilterStatus: document.querySelector("#summaryFilterStatus"),
   summaryViewButtons: document.querySelectorAll("[data-summary-view]"),
   trendChartTitle: document.querySelector("#trendChartTitle"),
+  trendPeriodCount: document.querySelector("#trendPeriodCountInput"),
+  trendPeriodCountUnit: document.querySelector("#trendPeriodCountUnit"),
   yearChart: document.querySelector("#yearChart"),
   summaryChartLegend: document.querySelector("#summaryChartLegend"),
   chartAxisControls: document.querySelector("#chartAxisControls"),
@@ -1085,6 +1093,8 @@ function bindEvents() {
       renderSummaryViews();
     });
   });
+  elements.trendPeriodCount.addEventListener("change", updateTrendPeriodCount);
+  elements.trendPeriodCount.addEventListener("blur", updateTrendPeriodCount);
 
   elements.modeButtons.forEach((button) => {
     button.addEventListener("click", () => {
@@ -1679,6 +1689,7 @@ function renderSummaryViews() {
   elements.summaryViewButtons.forEach((button) => {
     button.classList.toggle("active", button.dataset.summaryView === state.summaryView);
   });
+  updateTrendPeriodCountInput();
   updateSummaryChartFooter();
   renderPeriodList();
   renderYearChart();
@@ -1740,6 +1751,34 @@ function updateAxisLimitInputs() {
   elements.netAxisMaxDisplay.parentElement.firstChild.textContent = "収支軸 ";
   elements.barAxisMaxDisplay.textContent = limits.bar > 0 ? yen.format(limits.bar) : "制限なし";
   elements.netAxisMaxDisplay.textContent = limits.net > 0 ? yen.format(limits.net) : "制限なし";
+}
+
+function clampTrendPeriodCount(value) {
+  const count = Math.round(Number(value));
+  if (!Number.isFinite(count)) return 12;
+  return Math.min(Math.max(count, 1), 60);
+}
+
+function currentTrendPeriodCount() {
+  return state.periodMode === "week" ? state.weeklyTrendCount : state.monthlyTrendCount;
+}
+
+function updateTrendPeriodCountInput() {
+  elements.trendPeriodCount.value = String(currentTrendPeriodCount());
+  elements.trendPeriodCountUnit.textContent = state.periodMode === "week" ? "週" : "か月";
+}
+
+function updateTrendPeriodCount() {
+  const count = clampTrendPeriodCount(elements.trendPeriodCount.value);
+  if (state.periodMode === "week") {
+    state.weeklyTrendCount = count;
+    localStorage.setItem(WEEKLY_TREND_COUNT_STORAGE_KEY, String(count));
+  } else {
+    state.monthlyTrendCount = count;
+    localStorage.setItem(MONTHLY_TREND_COUNT_STORAGE_KEY, String(count));
+  }
+  updateTrendPeriodCountInput();
+  renderYearChart();
 }
 
 function updateAxisLimit(axis) {
@@ -4233,7 +4272,7 @@ function updateMdTagLinkOptions() {
   setSelectOptionsWithBlank(
     elements.mdTagLinkMd,
     state.mdDungeons.map((md) => ({ value: md.id, label: md.name })),
-    "MD未登録",
+    "MDを選択",
     true,
   );
   if (selectedMdId && state.mdDungeons.some((md) => md.id === selectedMdId)) elements.mdTagLinkMd.value = selectedMdId;
@@ -4397,8 +4436,8 @@ function renderSummaryDetail() {
   grid.className = "breakdown-grid";
   if (state.summaryView === "md") {
     grid.append(
-      createMdComparisonPanel("MD別収支", aggregateByMd(entries).sort(compareAmountDescending), entries, "収支", "net"),
-      createMdComparisonPanel("MD別 時給収支", aggregateMdHourly(entries, start, end).sort(compareAmountDescending).slice(0, 10), entries, "時給収支", "hourly"),
+      createMdComparisonPanel("MD別収支", aggregateByMd(entries).sort(compareBreakdownRows), entries, "収支", "net"),
+      createMdComparisonPanel("MD別 時給収支", aggregateMdHourly(entries, start, end).sort(compareBreakdownRows).slice(0, 10), entries, "時給収支", "hourly"),
     );
   } else {
     grid.append(
@@ -4477,7 +4516,10 @@ function renderYearChart() {
     <text class="chart-target-label" x="${width - padding.right - 6}" y="${targetY - 7}" text-anchor="end">目標${formatCompactAmount(chartTargetBalance)}</text>
   `;
 
-  elements.trendChartTitle.textContent = `${state.summaryView === "md" ? "MD " : ""}${state.periodMode === "week" ? "週次12週推移" : "月次12か月推移"}`;
+  const trendCount = currentTrendPeriodCount();
+  elements.trendChartTitle.textContent = `${state.summaryView === "md" ? "MD " : ""}${
+    state.periodMode === "week" ? `週次${trendCount}週推移` : `月次${trendCount}か月推移`
+  }`;
   elements.yearChart.innerHTML = `
     <svg class="combo-chart" viewBox="0 0 ${width} ${height}" role="img" aria-label="過去1年間の収入、支出、収支">
       ${gridLines}
@@ -4504,11 +4546,17 @@ function buildTrendChartRows() {
   return state.periodMode === "week" ? buildWeeklyChartRows() : buildMonthlyChartRows();
 }
 
+function selectedTrendBaseDate() {
+  const selected = parseRangeKey(state.periodStart);
+  return Number.isNaN(selected.getTime()) ? new Date() : selected;
+}
+
 function buildMonthlyChartRows() {
-  const now = new Date();
+  const baseDate = selectedTrendBaseDate();
+  const trendCount = currentTrendPeriodCount();
   const months = [];
-  for (let offset = 11; offset >= 0; offset -= 1) {
-    const date = new Date(now.getFullYear(), now.getMonth() - offset, 1);
+  for (let offset = trendCount - 1; offset >= 0; offset -= 1) {
+    const date = new Date(baseDate.getFullYear(), baseDate.getMonth() - offset, 1);
     months.push({
       key: `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}`,
       label: `${date.getFullYear()}/${date.getMonth() + 1}`,
@@ -4534,9 +4582,10 @@ function buildMonthlyChartRows() {
 }
 
 function buildWeeklyChartRows() {
-  const currentStart = getWeekStart(new Date());
+  const currentStart = getWeekStart(selectedTrendBaseDate());
+  const trendCount = currentTrendPeriodCount();
   const weeks = [];
-  for (let offset = 11; offset >= 0; offset -= 1) {
+  for (let offset = trendCount - 1; offset >= 0; offset -= 1) {
     const start = new Date(currentStart);
     start.setDate(start.getDate() - offset * 7);
     const end = getWeekEnd(start);
@@ -5576,7 +5625,8 @@ function renderSettlementDistributionBreakdown(targetName, rows) {
 function renderMdComparisonChart() {
   const periods = buildMdTrendPeriods();
   const mdRows = buildMdTopTrendRows(periods).slice(0, 5);
-  elements.trendChartTitle.textContent = `MD TOP5比較 ${state.periodMode === "week" ? "週次12週" : "月次12か月"}`;
+  const trendCount = currentTrendPeriodCount();
+  elements.trendChartTitle.textContent = `MD TOP5比較 ${state.periodMode === "week" ? `週次${trendCount}週` : `月次${trendCount}か月`}`;
 
   if (mdRows.length === 0) {
     elements.yearChart.innerHTML = `<div class="empty-state compact-empty">MDデータがありません</div>`;
@@ -5618,6 +5668,16 @@ function createMdComparisonPanel(title, rows, entries, valueLabel, panelKey) {
   }
 
   const max = Math.max(...rows.map((row) => Math.max(row.amount, 0)), 1);
+  const header = document.createElement("div");
+  header.className = "breakdown-row breakdown-row-head md-summary-row-head";
+  header.innerHTML = `
+    ${breakdownSortHeader("label", "MD")}
+    ${breakdownSortHeader("count", valueLabel === "時給収支" ? "時間" : "件数")}
+    ${breakdownSortHeader("amount", valueLabel)}
+    <span>収支バー</span>
+  `;
+  panel.append(header);
+
   for (const row of rows) {
     const expandKey = mdSummaryExpandKey(panelKey, row.label);
     const expanded = state.expandedMdSummaryRows.has(expandKey);

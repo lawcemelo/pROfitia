@@ -4023,6 +4023,36 @@ label {
   gap: 12px;
 }
 
+.trend-count-control {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin-left: auto;
+  color: var(--muted);
+  font-size: 0.78rem;
+  font-weight: 900;
+  white-space: nowrap;
+}
+
+.trend-count-control input {
+  width: 64px;
+  min-height: 30px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--panel-strong);
+  color: var(--ink);
+  font: inherit;
+  font-variant-numeric: tabular-nums;
+  padding: 4px 8px;
+  text-align: right;
+}
+
+.trend-count-control input:focus {
+  border-color: var(--blue);
+  outline: none;
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--blue) 13%, transparent);
+}
+
 .chart-axis-controls {
   display: flex;
   flex-wrap: wrap;
@@ -4555,6 +4585,7 @@ label {
 }
 
 .breakdown-row > span:first-child,
+.breakdown-row-head > span:first-child,
 .breakdown-row-head .breakdown-sort-button:first-child {
   min-width: 0;
   overflow: hidden;
