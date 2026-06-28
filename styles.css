@@ -4212,6 +4212,25 @@ label {
   gap: 6px;
 }
 
+.md-summary-total {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin: -2px 0 8px;
+  border: 1px solid color-mix(in srgb, var(--blue) 18%, var(--line));
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--blue) 7%, var(--panel-strong));
+  padding: 8px 10px;
+  font-size: 0.86rem;
+  font-weight: 900;
+}
+
+.md-summary-total strong {
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
 .md-summary-breakdown-toggle {
   width: 100%;
   background: transparent;
@@ -4278,15 +4297,46 @@ label {
   animation: chartLineDraw 0.9s ease-out forwards;
 }
 
+.md-trend-line.muted,
+.md-trend-dot.muted,
+.md-trend-legend-item.muted {
+  opacity: 0.28;
+}
+
 .md-trend-legend-title {
   fill: rgba(54, 65, 82, 0.76);
   font-size: 12px;
   font-weight: 900;
 }
 
+.md-trend-legend-item {
+  cursor: pointer;
+  outline: none;
+}
+
 .md-trend-legend-item rect {
   fill: rgba(255, 255, 255, 0.78);
   stroke-width: 1.6;
+}
+
+.md-trend-legend-item:focus rect:first-child,
+.md-trend-legend-item:hover rect:first-child {
+  filter: drop-shadow(0 0 4px rgba(49, 92, 155, 0.22));
+}
+
+.md-trend-check-box {
+  fill: rgba(255, 255, 255, 0.92);
+}
+
+.md-trend-check-mark {
+  fill: none;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  stroke-width: 2;
+}
+
+.md-trend-legend-item.muted .md-trend-check-mark {
+  display: none;
 }
 
 .md-trend-legend-item text {
@@ -4616,6 +4666,10 @@ label {
     linear-gradient(90deg, color-mix(in srgb, var(--red) 8%, #e8e5da) 0 50%, color-mix(in srgb, var(--blue) 8%, #e8e5da) 50% 100%);
 }
 
+.md-summary-breakdown-track {
+  background: color-mix(in srgb, var(--blue) 10%, #e8e5da);
+}
+
 .breakdown-zero-line {
   position: absolute;
   top: -2px;
@@ -4638,6 +4692,12 @@ label {
 
 .breakdown-fill.negative {
   background: var(--red);
+}
+
+.md-summary-breakdown-fill {
+  left: 0;
+  background:
+    linear-gradient(90deg, color-mix(in srgb, var(--blue) 68%, white), var(--blue));
 }
 
 .compact-empty {

@@ -260,6 +260,7 @@ const state = {
   mdUnlockSequence: [],
   summaryView: "overall",
   expandedMdSummaryRows: new Set(),
+  mdTrendMutedLabels: new Set(),
   search: "",
   typeFilter: "all",
   barsExpanded: false,
@@ -1092,6 +1093,18 @@ function bindEvents() {
       state.summaryView = button.dataset.summaryView === "md" ? "md" : "overall";
       renderSummaryViews();
     });
+  });
+  elements.yearChart.addEventListener("click", (event) => {
+    const legendItem = event.target.closest(".md-trend-legend-item[data-md-label]");
+    if (!legendItem) return;
+    toggleMdTrendMuted(legendItem.dataset.mdLabel);
+  });
+  elements.yearChart.addEventListener("keydown", (event) => {
+    if (!["Enter", " "].includes(event.key)) return;
+    const legendItem = event.target.closest(".md-trend-legend-item[data-md-label]");
+    if (!legendItem) return;
+    event.preventDefault();
+    toggleMdTrendMuted(legendItem.dataset.mdLabel);
   });
   elements.trendPeriodCount.addEventListener("change", updateTrendPeriodCount);
   elements.trendPeriodCount.addEventListener("blur", updateTrendPeriodCount);
@@ -5668,6 +5681,17 @@ function createMdComparisonPanel(title, rows, entries, valueLabel, panelKey) {
   }
 
   const max = Math.max(...rows.map((row) => Math.max(row.amount, 0)), 1);
+  if (panelKey === "net") {
+    const totalAmount = rows.reduce((sum, row) => sum + row.amount, 0);
+    const total = document.createElement("div");
+    total.className = "md-summary-total";
+    total.innerHTML = `
+      <span>合計</span>
+      <strong class="${totalAmount < 0 ? "expense-text" : "income-text"}">${formatSignedYen(totalAmount)}</strong>
+    `;
+    panel.append(total);
+  }
+
   const header = document.createElement("div");
   header.className = "breakdown-row breakdown-row-head md-summary-row-head";
   header.innerHTML = `
@@ -5681,7 +5705,7 @@ function createMdComparisonPanel(title, rows, entries, valueLabel, panelKey) {
   for (const row of rows) {
     const expandKey = mdSummaryExpandKey(panelKey, row.label);
     const expanded = state.expandedMdSummaryRows.has(expandKey);
-    const width = Math.max(3, (Math.max(row.amount, 0) / max) * 50);
+    const width = Math.max(3, (Math.max(row.amount, 0) / max) * 100);
     const count = valueLabel === "時給" ? `${formatQuantity(row.count || 0)}h` : formatQuantity(row.count || 0);
     const wrapper = document.createElement("div");
     wrapper.className = `md-summary-block${expanded ? " expanded" : ""}`;
@@ -5690,9 +5714,8 @@ function createMdComparisonPanel(title, rows, entries, valueLabel, panelKey) {
         <span>${escapeHTML(row.label)}</span>
         <span class="breakdown-count">${escapeHTML(count)}</span>
         <strong class="${row.amount < 0 ? "expense-text" : "income-text"}">${valueLabel === "時給" ? `${yen.format(row.amount)}/h` : formatSignedYen(row.amount)}</strong>
-        <div class="breakdown-track net-breakdown-track">
-          <div class="breakdown-zero-line"></div>
-          <div class="breakdown-fill ${row.amount < 0 ? "negative" : ""}" style="width: ${width}%; ${row.amount < 0 ? "right: 50%;" : "left: 50%;"}"></div>
+        <div class="breakdown-track md-summary-breakdown-track">
+          <div class="breakdown-fill md-summary-breakdown-fill" style="width: ${width}%;"></div>
         </div>
       </button>
       ${expanded ? renderMdSummaryDetails(row.label, entries) : ""}
@@ -5768,7 +5791,7 @@ function renderMdTrendLineChart(periods, rows) {
   const sortedRows = [...rows].sort(compareMdTrendRowsForCurrentPeriod);
   const width = 960;
   const height = 300;
-  const padding = { top: 24, right: 228, bottom: 52, left: 78 };
+  const padding = { top: 24, right: 278, bottom: 52, left: 78 };
   const chartWidth = width - padding.left - padding.right;
   const chartHeight = height - padding.top - padding.bottom;
   const mdAxisMax = currentAxisLimits().md;
@@ -5786,9 +5809,10 @@ function renderMdTrendLineChart(periods, rows) {
   }).join("");
   const lines = sortedRows.map((row, rowIndex) => {
     const color = colors[rowIndex % colors.length];
+    const muted = state.mdTrendMutedLabels.has(row.label);
     const points = row.values.map((value, index) => `${xOf(index)},${yOf(value)}`).join(" ");
-    const dots = row.values.map((value, index) => `<circle class="md-trend-dot" cx="${xOf(index)}" cy="${yOf(value)}" r="3.5" fill="${color}"><title>${row.label} ${periods[index].label} ${yen.format(value)}</title></circle>`).join("");
-    return `<polyline class="md-trend-line" points="${points}" pathLength="1" style="stroke:${color}"></polyline>${dots}`;
+    const dots = row.values.map((value, index) => `<circle class="md-trend-dot ${muted ? "muted" : ""}" cx="${xOf(index)}" cy="${yOf(value)}" r="3.5" fill="${color}"><title>${row.label} ${periods[index].label} ${yen.format(value)}</title></circle>`).join("");
+    return `<polyline class="md-trend-line ${muted ? "muted" : ""}" points="${points}" pathLength="1" style="stroke:${color}"></polyline>${dots}`;
   }).join("");
   const labels = periods.map((period, index) => `<text class="chart-label" x="${xOf(index)}" y="${height - 28}" text-anchor="middle">${escapeHTML(period.shortLabel)}</text>`).join("");
   const legendX = width - padding.right + 28;
@@ -5797,11 +5821,14 @@ function renderMdTrendLineChart(periods, rows) {
     const color = colors[index % colors.length];
     const y = legendY + index * 38;
     const label = row.label.length > 15 ? `${row.label.slice(0, 14)}窶ｦ` : row.label;
+    const muted = state.mdTrendMutedLabels.has(row.label);
     return `
-      <g class="md-trend-legend-item">
-        <rect x="${legendX}" y="${y}" width="160" height="28" rx="8" style="stroke:${color}"></rect>
-        <circle cx="${legendX + 15}" cy="${y + 14}" r="5" fill="${color}"></circle>
-        <text x="${legendX + 28}" y="${y + 18}">${escapeHTML(label)}<title>${escapeHTML(row.label)}</title></text>
+      <g class="md-trend-legend-item ${muted ? "muted" : ""}" data-md-label="${escapeHTML(row.label)}" role="button" tabindex="0" aria-pressed="${!muted}">
+        <rect x="${legendX}" y="${y}" width="210" height="28" rx="8" style="stroke:${color}"></rect>
+        <rect class="md-trend-check-box" x="${legendX + 9}" y="${y + 8}" width="12" height="12" rx="3" style="stroke:${color}"></rect>
+        <path class="md-trend-check-mark" d="M ${legendX + 12} ${y + 14} L ${legendX + 15} ${y + 17} L ${legendX + 20} ${y + 11}" style="stroke:${color}"></path>
+        <circle cx="${legendX + 32}" cy="${y + 14}" r="5" fill="${color}"></circle>
+        <text x="${legendX + 45}" y="${y + 18}">${escapeHTML(label)}<title>${escapeHTML(row.label)}</title></text>
       </g>
     `;
   }).join("");
@@ -5817,6 +5844,16 @@ function renderMdTrendLineChart(periods, rows) {
       ${legend}
     </svg>
   `;
+}
+
+function toggleMdTrendMuted(label) {
+  if (!label) return;
+  if (state.mdTrendMutedLabels.has(label)) {
+    state.mdTrendMutedLabels.delete(label);
+  } else {
+    state.mdTrendMutedLabels.add(label);
+  }
+  renderYearChart();
 }
 
 function compareMdTrendRowsForCurrentPeriod(a, b) {
