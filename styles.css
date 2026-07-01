@@ -4213,15 +4213,15 @@ label {
 }
 
 .md-summary-total {
-  display: flex;
+  display: grid;
+  grid-template-columns: auto max-content;
   align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-  margin: -2px 0 8px;
-  border: 1px solid color-mix(in srgb, var(--blue) 18%, var(--line));
-  border-radius: 8px;
-  background: color-mix(in srgb, var(--blue) 7%, var(--panel-strong));
-  padding: 8px 10px;
+  justify-self: end;
+  gap: 18px;
+  min-width: 220px;
+  margin: 8px 0 0;
+  border-bottom: 2px solid color-mix(in srgb, var(--blue) 36%, var(--line));
+  padding: 7px 6px 8px 14px;
   font-size: 0.86rem;
   font-weight: 900;
 }
@@ -4573,6 +4573,14 @@ label {
   font-size: 0.86rem;
   font-weight: 800;
   padding: 5px 6px;
+}
+
+.breakdown-row.md-net-summary-row {
+  grid-template-columns: minmax(190px, 1fr) 48px 58px 124px 42px;
+}
+
+.breakdown-row.md-hourly-summary-row {
+  grid-template-columns: minmax(170px, 1fr) 64px 64px 126px 42px;
 }
 
 .summary-breakdown-block {
@@ -6088,6 +6096,42 @@ body.md-fullscreen-mode .app-shell {
     inset 0 1px 0 var(--panel-faint);
 }
 
+.md-week-cell.md-axis-selected {
+  border-color: color-mix(in srgb, var(--blue) 58%, var(--line));
+  box-shadow:
+    inset 0 0 0 2px color-mix(in srgb, var(--blue) 24%, transparent),
+    0 0 0 2px color-mix(in srgb, var(--blue) 10%, transparent);
+}
+
+.md-week-slot-cell.md-axis-selected {
+  background:
+    linear-gradient(180deg, color-mix(in srgb, var(--blue) 14%, transparent), color-mix(in srgb, var(--blue) 8%, transparent)),
+    var(--panel);
+}
+
+.md-week-cell.md-axis-origin {
+  z-index: 12;
+  background: color-mix(in srgb, var(--blue) 18%, var(--panel-strong));
+  color: var(--blue);
+  box-shadow:
+    0 0 0 3px color-mix(in srgb, var(--blue) 16%, transparent),
+    inset 0 0 0 2px color-mix(in srgb, var(--blue) 34%, transparent);
+}
+
+.md-week-cell.md-axis-origin.md-sticky-cell::after {
+  background: linear-gradient(90deg, color-mix(in srgb, var(--blue) 18%, var(--panel-strong)), transparent);
+}
+
+.md-week-slot-cell.md-axis-intersection {
+  border-color: color-mix(in srgb, var(--green) 62%, var(--blue));
+  background:
+    linear-gradient(180deg, color-mix(in srgb, var(--green) 20%, transparent), color-mix(in srgb, var(--blue) 12%, transparent)),
+    var(--panel);
+  box-shadow:
+    inset 0 0 0 2px color-mix(in srgb, var(--green) 28%, transparent),
+    0 0 0 3px color-mix(in srgb, var(--green) 12%, transparent);
+}
+
 .md-week-character {
   display: grid;
   grid-template-columns: 30px max-content;
@@ -6188,6 +6232,24 @@ body.md-fullscreen-mode .app-shell {
       color-mix(in srgb, var(--muted) 11%, var(--panel)) 8px 16px
     );
   color: color-mix(in srgb, var(--muted) 82%, var(--line));
+}
+
+.md-week-slot-cell.md-axis-selected.incomplete,
+.md-week-slot-cell.md-axis-selected.completed,
+.md-week-slot-cell.md-axis-selected.level-locked {
+  border-color: color-mix(in srgb, var(--blue) 58%, var(--line));
+  background:
+    linear-gradient(180deg, color-mix(in srgb, var(--blue) 17%, transparent), color-mix(in srgb, var(--blue) 10%, transparent)),
+    var(--panel);
+}
+
+.md-week-slot-cell.md-axis-intersection.incomplete,
+.md-week-slot-cell.md-axis-intersection.completed,
+.md-week-slot-cell.md-axis-intersection.level-locked {
+  border-color: color-mix(in srgb, var(--green) 62%, var(--blue));
+  background:
+    linear-gradient(180deg, color-mix(in srgb, var(--green) 20%, transparent), color-mix(in srgb, var(--blue) 12%, transparent)),
+    var(--panel);
 }
 
 .md-week-slot-cell.level-locked .md-run-slot {

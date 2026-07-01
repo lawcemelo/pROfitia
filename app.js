@@ -261,6 +261,7 @@ const state = {
   summaryView: "overall",
   expandedMdSummaryRows: new Set(),
   mdTrendMutedLabels: new Set(),
+  mdGridSelection: { characterId: "", mdId: "" },
   search: "",
   typeFilter: "all",
   barsExpanded: false,
@@ -750,15 +751,25 @@ function bindEvents() {
   });
 
   elements.mdWeekGrid.addEventListener("click", (event) => {
-    if (!isMdManagementInteractive()) return;
     const visibilityButton = event.target.closest(".md-visibility-button");
     if (visibilityButton) {
+      if (!isMdManagementInteractive()) return;
       event.stopPropagation();
       toggleMdDungeonVisibility(visibilityButton.dataset.id, true);
       return;
     }
+    const header = event.target.closest(".md-draggable-header");
+    if (header) {
+      selectMdGridAxis(header.dataset.dragType, header.dataset.dragId);
+      return;
+    }
     const slot = event.target.closest(".md-run-slot");
-    if (slot) toggleMdRunSlot(slot.dataset.characterId, slot.dataset.mdId, slot.dataset.runId);
+    if (slot) {
+      if (!isMdManagementInteractive()) return;
+      toggleMdRunSlot(slot.dataset.characterId, slot.dataset.mdId, slot.dataset.runId);
+      return;
+    }
+    clearMdGridSelection();
   });
   elements.mdWeekGrid.addEventListener("contextmenu", (event) => {
     const slot = event.target.closest(".md-run-slot");
@@ -772,6 +783,9 @@ function bindEvents() {
   elements.mdWeekGrid.addEventListener("dragleave", handleMdHeaderDragLeave);
   elements.mdWeekGrid.addEventListener("drop", handleMdHeaderDrop);
   elements.mdWeekGrid.addEventListener("dragend", handleMdHeaderDragEnd);
+  document.addEventListener("keydown", (event) => {
+    if (event.key === "Escape") clearMdGridSelection();
+  });
   elements.mdLayoutButtons.forEach((button) => {
     button.addEventListener("click", () => {
       state.mdLayout = button.dataset.mdLayout;
@@ -3957,6 +3971,7 @@ function renderMdWeekGrid() {
       }
     }
   }
+  applyMdGridSelection(table);
   elements.mdWeekGrid.append(table);
 }
 
@@ -4039,6 +4054,62 @@ function makeMdDraggableHeader(cell, type, id) {
   return cell;
 }
 
+function selectMdGridAxis(type, id) {
+  if (!["character", "md"].includes(type) || !id) return;
+  const selection = state.mdGridSelection || { characterId: "", mdId: "" };
+  const key = type === "character" ? "characterId" : "mdId";
+  state.mdGridSelection = {
+    ...selection,
+    [key]: selection[key] === id ? "" : id,
+  };
+  applyMdGridSelection();
+}
+
+function clearMdGridSelection() {
+  if (!state.mdGridSelection?.characterId && !state.mdGridSelection?.mdId) return;
+  state.mdGridSelection = { characterId: "", mdId: "" };
+  applyMdGridSelection();
+}
+
+function applyMdGridSelection(root = elements.mdWeekGrid) {
+  if (!root) return;
+  root.querySelectorAll(".md-axis-selected, .md-axis-origin, .md-axis-intersection").forEach((cell) => {
+    cell.classList.remove("md-axis-selected", "md-axis-origin", "md-axis-intersection");
+  });
+  const selection = state.mdGridSelection;
+  if (!selection?.characterId && !selection?.mdId) return;
+
+  if (selection.characterId) {
+    const characterId = cssEscape(selection.characterId);
+    root.querySelectorAll(`.md-week-slot-cell[data-character-id="${characterId}"]`).forEach((cell) => {
+      cell.classList.add("md-axis-selected");
+    });
+    root.querySelectorAll(`.md-draggable-header[data-drag-type="character"][data-drag-id="${characterId}"]`).forEach((cell) => {
+      cell.classList.add("md-axis-selected", "md-axis-origin");
+    });
+  }
+
+  if (selection.mdId) {
+    const mdId = cssEscape(selection.mdId);
+    root.querySelectorAll(`.md-week-slot-cell[data-md-id="${mdId}"]`).forEach((cell) => {
+      cell.classList.add("md-axis-selected");
+    });
+    root.querySelectorAll(`.md-draggable-header[data-drag-type="md"][data-drag-id="${mdId}"]`).forEach((cell) => {
+      cell.classList.add("md-axis-selected", "md-axis-origin");
+    });
+  }
+
+  if (selection.characterId && selection.mdId) {
+    root
+      .querySelectorAll(`.md-week-slot-cell[data-character-id="${cssEscape(selection.characterId)}"][data-md-id="${cssEscape(selection.mdId)}"]`)
+      .forEach((cell) => cell.classList.add("md-axis-intersection"));
+  }
+}
+
+function cssEscape(value) {
+  return window.CSS?.escape ? CSS.escape(String(value)) : String(value).replace(/["\\]/g, "\\$&");
+}
+
 function handleMdHeaderDragStart(event) {
   if (event.target.closest("button")) {
     event.preventDefault();
@@ -4110,6 +4181,8 @@ function reorderMdHeader(type, sourceId, targetId) {
 function mdRunSlotCell(character, md, runs) {
   const cell = document.createElement("div");
   cell.className = "md-week-cell md-week-slot-cell";
+  cell.dataset.characterId = character.id;
+  cell.dataset.mdId = md.id;
   const isReadonly = !isMdManagementInteractive();
   const isLocked = !canCharacterEnterMd(character, md);
   const limit = mdPeriodLimit(md);
@@ -4413,22 +4486,27 @@ function renderPeriodList() {
 
 function buildPeriodSummaries() {
   const summaries = new Map();
+  ensurePeriodSummary(summaries, parseRangeKey(state.periodStart));
+  ensurePeriodSummary(summaries, currentMaxPeriodStart());
 
   for (const entry of currentSummaryEntries()) {
     const start = getRangeStart(entryDateTime(entry));
-    const key = rangeKey(start);
-    const end = getRangeEnd(start);
-    if (!summaries.has(key)) {
-      summaries.set(key, { key, start, end, income: 0, expense: 0, net: 0 });
-    }
-
-    const summary = summaries.get(key);
+    const summary = ensurePeriodSummary(summaries, start);
     if (entry.type === "income") summary.income += entry.amount;
     if (entry.type === "expense") summary.expense += entry.amount;
     summary.net = summary.income - summary.expense;
   }
 
   return [...summaries.values()].sort((a, b) => b.start - a.start);
+}
+
+function ensurePeriodSummary(summaries, start) {
+  const normalizedStart = getRangeStart(start);
+  const key = rangeKey(normalizedStart);
+  if (!summaries.has(key)) {
+    summaries.set(key, { key, start: normalizedStart, end: getRangeEnd(normalizedStart), income: 0, expense: 0, net: 0 });
+  }
+  return summaries.get(key);
 }
 
 function renderSummaryDetail() {
@@ -4449,7 +4527,7 @@ function renderSummaryDetail() {
   grid.className = "breakdown-grid";
   if (state.summaryView === "md") {
     grid.append(
-      createMdComparisonPanel("MD別収支", aggregateByMd(entries).sort(compareBreakdownRows), entries, "収支", "net"),
+      createMdComparisonPanel("MD別収支", aggregateByMd(entries, start, end).sort(compareBreakdownRows), entries, "収支", "net"),
       createMdComparisonPanel("MD別 時給収支", aggregateMdHourly(entries, start, end).sort(compareBreakdownRows).slice(0, 10), entries, "時給収支", "hourly"),
     );
   } else {
@@ -4657,15 +4735,25 @@ function aggregateByItem(entries) {
     .sort(compareBreakdownRows);
 }
 
-function aggregateByMd(entries) {
+function aggregateByMd(entries, start = null, end = null) {
   const totals = new Map();
   for (const entry of entries) {
     const label = entryMdName(entry) || "未分類MD";
     const signedAmount = entry.type === "income" ? entry.amount : -entry.amount;
     addBreakdownTotal(totals, label, signedAmount);
   }
+  if (start && end) {
+    for (const run of state.mdRuns) {
+      const time = mdRunDateTime(run);
+      if (time < start || time >= end) continue;
+      const label = run.mdName || mdNameById(run.mdId) || "未分類MD";
+      const current = totals.get(label);
+      if (!current) continue;
+      current.runCount = (current.runCount || 0) + 1;
+    }
+  }
   return [...totals.entries()]
-    .map(([label, value]) => ({ label, amount: value.amount, count: value.count }))
+    .map(([label, value]) => ({ label, amount: value.amount, count: value.count, runCount: value.runCount || 0 }))
     .sort(compareBreakdownRows);
 }
 
@@ -4680,13 +4768,18 @@ function aggregateMdHourly(entries, start, end) {
     const duration = Number(run.durationMinutes || 0);
     if (!duration) continue;
     const label = run.mdName || mdNameById(run.mdId) || "未分類MD";
-    durationByMd.set(label, (durationByMd.get(label) || 0) + duration);
+    const current = durationByMd.get(label) || { minutes: 0, runs: 0 };
+    current.minutes += duration;
+    current.runs += 1;
+    durationByMd.set(label, current);
   }
 
   return [...netByMd.entries()]
     .map(([label, amount]) => {
-      const hours = (durationByMd.get(label) || 0) / 60;
-      return { label, amount: hours > 0 ? Math.round(amount / hours) : 0, count: hours };
+      const duration = durationByMd.get(label) || { minutes: 0, runs: 0 };
+      const hours = duration.minutes / 60;
+      const averageHours = duration.runs > 0 ? hours / duration.runs : 0;
+      return { label, amount: hours > 0 ? Math.round(amount / hours) : 0, count: hours, averageDuration: averageHours };
     })
     .filter((row) => row.count > 0)
     .sort(compareBreakdownRows);
@@ -4744,6 +4837,10 @@ function breakdownSortValue(row, key) {
       return row.label || "";
     case "count":
       return row.count;
+    case "runCount":
+      return row.runCount || 0;
+    case "averageDuration":
+      return row.averageDuration || 0;
     case "amount":
       return row.amount;
     default:
@@ -5668,6 +5765,8 @@ function renderMdBarRows(rows, max, valueLabel) {
 function createMdComparisonPanel(title, rows, entries, valueLabel, panelKey) {
   const panel = document.createElement("section");
   panel.className = "breakdown-panel md-summary-panel";
+  const isHourlyPanel = panelKey === "hourly";
+  const rowLayoutClass = isHourlyPanel ? "md-hourly-summary-row" : "md-net-summary-row";
   const heading = document.createElement("h3");
   heading.textContent = title;
   panel.append(heading);
@@ -5675,30 +5774,31 @@ function createMdComparisonPanel(title, rows, entries, valueLabel, panelKey) {
   if (rows.length === 0) {
     const empty = document.createElement("div");
     empty.className = "empty-state compact-empty";
-    empty.textContent = valueLabel === "時給" ? "攻略時間付きのMD記録がありません" : "MDに紐づく明細はありません";
+    empty.textContent = isHourlyPanel ? "攻略時間付きのMD記録がありません" : "MDに紐づく明細はありません";
     panel.append(empty);
     return panel;
   }
 
   const max = Math.max(...rows.map((row) => Math.max(row.amount, 0)), 1);
+  let total = null;
   if (panelKey === "net") {
     const totalAmount = rows.reduce((sum, row) => sum + row.amount, 0);
-    const total = document.createElement("div");
+    total = document.createElement("div");
     total.className = "md-summary-total";
     total.innerHTML = `
       <span>合計</span>
       <strong class="${totalAmount < 0 ? "expense-text" : "income-text"}">${formatSignedYen(totalAmount)}</strong>
     `;
-    panel.append(total);
   }
 
   const header = document.createElement("div");
-  header.className = "breakdown-row breakdown-row-head md-summary-row-head";
+  header.className = `breakdown-row breakdown-row-head md-summary-row-head ${rowLayoutClass}`;
   header.innerHTML = `
     ${breakdownSortHeader("label", "MD")}
-    ${breakdownSortHeader("count", valueLabel === "時給収支" ? "時間" : "件数")}
-    ${breakdownSortHeader("amount", valueLabel)}
-    <span>収支バー</span>
+    ${breakdownSortHeader("count", isHourlyPanel ? "合計時間(h)" : "件数")}
+    ${isHourlyPanel ? breakdownSortHeader("averageDuration", "時間/周(h)") : breakdownSortHeader("runCount", "周回数")}
+    ${breakdownSortHeader("amount", isHourlyPanel ? "時給収支(円/h)" : valueLabel)}
+    <span></span>
   `;
   panel.append(header);
 
@@ -5706,14 +5806,17 @@ function createMdComparisonPanel(title, rows, entries, valueLabel, panelKey) {
     const expandKey = mdSummaryExpandKey(panelKey, row.label);
     const expanded = state.expandedMdSummaryRows.has(expandKey);
     const width = Math.max(3, (Math.max(row.amount, 0) / max) * 100);
-    const count = valueLabel === "時給" ? `${formatQuantity(row.count || 0)}h` : formatQuantity(row.count || 0);
+    const count = formatQuantity(row.count || 0);
+    const averageDuration = isHourlyPanel ? formatQuantity(row.averageDuration || 0) : "";
+    const runCount = isHourlyPanel ? "" : formatQuantity(row.runCount || 0);
     const wrapper = document.createElement("div");
     wrapper.className = `md-summary-block${expanded ? " expanded" : ""}`;
     wrapper.innerHTML = `
-      <button class="breakdown-row md-summary-toggle md-summary-breakdown-toggle" type="button" data-md-key="${escapeHTML(expandKey)}" data-md-label="${escapeHTML(row.label)}" aria-expanded="${expanded}">
+      <button class="breakdown-row md-summary-toggle md-summary-breakdown-toggle ${rowLayoutClass}" type="button" data-md-key="${escapeHTML(expandKey)}" data-md-label="${escapeHTML(row.label)}" aria-expanded="${expanded}">
         <span>${escapeHTML(row.label)}</span>
         <span class="breakdown-count">${escapeHTML(count)}</span>
-        <strong class="${row.amount < 0 ? "expense-text" : "income-text"}">${valueLabel === "時給" ? `${yen.format(row.amount)}/h` : formatSignedYen(row.amount)}</strong>
+        <span class="breakdown-count">${escapeHTML(isHourlyPanel ? averageDuration : runCount)}</span>
+        <strong class="${row.amount < 0 ? "expense-text" : "income-text"}">${isHourlyPanel ? yen.format(row.amount) : formatSignedYen(row.amount)}</strong>
         <div class="breakdown-track md-summary-breakdown-track">
           <div class="breakdown-fill md-summary-breakdown-fill" style="width: ${width}%;"></div>
         </div>
@@ -5722,6 +5825,7 @@ function createMdComparisonPanel(title, rows, entries, valueLabel, panelKey) {
     `;
     panel.append(wrapper);
   }
+  if (total) panel.append(total);
   return panel;
 }
 
@@ -6927,6 +7031,7 @@ function shiftPeriod(offset) {
   }
   if (isFuturePeriodStart(date, state.periodMode)) return;
   state.periodStart = rangeKey(date);
+  syncSummarySelectionToCurrentPeriod();
   updatePeriodLabel();
   render();
 }
@@ -6939,7 +7044,7 @@ function setPeriodMode(mode) {
   if (state.periodMode === mode) return;
   state.periodMode = mode;
   state.periodStart = rangeKey(getRangeStart(new Date()));
-  state.selectedSummaryKey = "";
+  syncSummarySelectionToCurrentPeriod();
   updateAxisLimitInputs();
   updatePeriodLabel();
   render();
@@ -7016,7 +7121,7 @@ function updateMonthPeriodFromSelectors() {
   if (!year || !month) return;
   const selectedDate = new Date(year, month - 1, 1, 0, 0, 0, 0);
   state.periodStart = rangeKey(isFuturePeriodStart(selectedDate, "month") ? currentMaxPeriodStart("month") : selectedDate);
-  state.selectedSummaryKey = "";
+  syncSummarySelectionToCurrentPeriod();
   updatePeriodLabel();
   render();
 }
@@ -7026,9 +7131,13 @@ function updateWeekPeriodFromSelector() {
   if (!elements.period.value) return;
   const selectedDate = parseRangeKey(elements.period.value);
   state.periodStart = rangeKeyForMode(isFuturePeriodStart(selectedDate, "week") ? currentMaxPeriodStart("week") : selectedDate, "week");
-  state.selectedSummaryKey = "";
+  syncSummarySelectionToCurrentPeriod();
   updatePeriodLabel();
   render();
+}
+
+function syncSummarySelectionToCurrentPeriod() {
+  state.selectedSummaryKey = rangeKey(parseRangeKey(state.periodStart));
 }
 
 function sum(entries) {
