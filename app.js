@@ -74,6 +74,7 @@ const APP_STORAGE_KEYS = [
 const TITLE_LOGO_LIGHT = "assets/profitia-title.png";
 const TITLE_LOGO_DARK = "assets/profitia-title-dark.png";
 const DISPLAY_QUANTITY_DECIMALS = 2;
+const RO_OFFICIAL_ITEM_BASE_URL = "https://rotool.gungho.jp/item";
 
 const themes = {
   default: {
@@ -347,6 +348,7 @@ const elements = {
   mapList: document.querySelector("#mapList"),
   itemName: document.querySelector("#itemNameInput"),
   itemAmount: document.querySelector("#itemAmountInput"),
+  itemOfficialId: document.querySelector("#itemOfficialIdInput"),
   addItem: document.querySelector("#addItemButton"),
   itemList: document.querySelector("#itemList"),
   mdTab: document.querySelector("#mdTabButton"),
@@ -502,6 +504,7 @@ const elements = {
   mdEntryTime: document.querySelector("#mdEntryTimeInput"),
   mdEntryMd: document.querySelector("#mdEntryMdInput"),
   mdEntryDuration: document.querySelector("#mdEntryDurationInput"),
+  mdEntryPartySize: document.querySelector("#mdEntryPartySizeInput"),
   mdEntryLines: document.querySelector("#mdEntryLines"),
   mdEntryLineTemplate: document.querySelector("#mdEntryLineTemplate"),
   addMdEntryLine: document.querySelector("#addMdEntryLineButton"),
@@ -570,6 +573,9 @@ const elements = {
   masterName: document.querySelector("#masterNameInput"),
   masterAmountLabel: document.querySelector("#masterAmountLabel"),
   masterAmount: document.querySelector("#masterAmountInput"),
+  masterOfficialIdLabel: document.querySelector("#masterOfficialIdLabel"),
+  masterOfficialId: document.querySelector("#masterOfficialIdInput"),
+  openMasterOfficialPage: document.querySelector("#openMasterOfficialPageButton"),
   masterJobLabel: document.querySelector("#masterJobLabel"),
   masterJob: document.querySelector("#masterJobInput"),
   masterCharacterLevelLabel: document.querySelector("#masterCharacterLevelLabel"),
@@ -632,6 +638,7 @@ function init() {
   updateStickyTopHeight();
   updateMdTabVisibility();
   setupSettingsInterfaceGroups();
+  setupSettingsPanelCollapse();
   bindEvents();
   refreshConfigurationViews();
   updateEntryMode();
@@ -912,11 +919,18 @@ function bindEvents() {
       mdName: mdNameById(elements.entryMd.value),
       quantity: parseQuantityInput(elements.quantity.value) || 1,
       unitPrice: currentUnitPrice(),
+      settlementTotalAmount: parseAmount(elements.amount.dataset.settlementTotalAmount || ""),
+      settlementPeople: Number(elements.amount.dataset.settlementPeople || 0),
       tags: getTagValues(elements.tags),
     };
+    if (!entry.settlementPeople) {
+      delete entry.settlementTotalAmount;
+      delete entry.settlementPeople;
+    }
 
     state.entries.push(entry);
     saveEntries();
+    clearEntrySettlementSplitAmount();
     elements.entryItem.value = "";
     elements.entryItemSelect.value = "";
     setTagValues(elements.tags, elements.tagChipList, []);
@@ -941,6 +955,7 @@ function bindEvents() {
 
   elements.form.addEventListener("change", (event) => {
     if (event.target.name === "type") {
+      clearEntrySettlementSplitAmount();
       syncEntryFieldsForTypeSwitch();
       updateEntryMode();
       renderFrequentTags();
@@ -948,6 +963,7 @@ function bindEvents() {
     }
 
     if (event.target.id === "entryMapInput") {
+      clearEntrySettlementSplitAmount();
       const itemName = anyEntryItemName();
       if (!confirmClearItemOutsideGroup(elements.entryMap, itemName, clearEntryItemFields)) {
         updateEntryItemOptions(itemName);
@@ -961,6 +977,7 @@ function bindEvents() {
     }
 
     if (["entryItemInput", "entryItemSelect", "expenseNameSelect"].includes(event.target.id)) {
+      clearEntrySettlementSplitAmount();
       fillUnitPriceFromSelectedItem();
       updateAmount();
     }
@@ -970,6 +987,7 @@ function bindEvents() {
     if (isMoneyInput(event.target) && !isComposingInputEvent(event)) formatMoneyInput(event.target);
     if (["quantityInput", "settlementPeopleCountInput"].includes(event.target.id) && !isComposingInputEvent(event)) formatQuantityInput(event.target);
     if (["quantityInput", "unitPriceInput", "entryItemInput", "entryItemSelect", "expenseNameSelect"].includes(event.target.id)) {
+      clearEntrySettlementSplitAmount();
       if (event.target.id === "entryItemInput") fillUnitPriceFromSelectedItem();
       updateAmount();
     }
@@ -1035,9 +1053,14 @@ function bindEvents() {
   elements.addItem.addEventListener("click", () => {
     const name = elements.itemName.value.trim();
     if (!name || state.items.some((item) => item.name === name)) return;
-    state.items.push({ name, amount: parseAmount(elements.itemAmount.value) });
-  elements.itemName.value = "";
+    state.items.push({
+      name,
+      amount: parseAmount(elements.itemAmount.value),
+      officialId: normalizeOfficialItemId(elements.itemOfficialId.value),
+    });
+    elements.itemName.value = "";
     elements.itemAmount.value = "";
+    elements.itemOfficialId.value = "";
     saveItems();
     refreshConfigurationViews();
   });
@@ -1076,6 +1099,9 @@ function bindEvents() {
     input.addEventListener("input", (event) => {
       if (!isComposingInputEvent(event)) formatMoneyInput(input);
     });
+  });
+  elements.openMasterOfficialPage.addEventListener("click", () => {
+    openOfficialItemPageFromInput(elements.masterOfficialId);
   });
 
   elements.periodList.addEventListener("click", (event) => {
@@ -1291,6 +1317,10 @@ function bindEvents() {
   });
   elements.mdEntryForm.addEventListener("input", (event) => {
     if (event.target.id === "mdEntryDurationInput" && !isComposingInputEvent(event)) formatQuantityInput(event.target);
+    if (event.target.id === "mdEntryPartySizeInput" && !isComposingInputEvent(event)) {
+      formatQuantityInput(event.target);
+      refreshMdEntryLineAmounts();
+    }
     if (event.target.classList.contains("md-entry-line-quantity") && !isComposingInputEvent(event)) formatQuantityInput(event.target);
     if (event.target.classList.contains("md-entry-line-price") || event.target.classList.contains("md-entry-line-quantity")) {
       updateMdEntryLineAmount(event.target.closest(".md-entry-line"));
@@ -1325,12 +1355,14 @@ function bindEvents() {
 
   elements.editForm.addEventListener("change", (event) => {
     if (event.target.name === "editType") {
+      clearEditSettlementSplitAmount();
       updateEditMode();
       syncEditFieldsForType();
       updateEditAmount();
     }
 
     if (event.target.id === "editMapInput") {
+      clearEditSettlementSplitAmount();
       const itemName = anyEditItemName();
       if (!confirmClearItemOutsideGroup(elements.editMap, itemName, clearEditItemFields)) {
         updateEditItemOptions(itemName);
@@ -1344,6 +1376,7 @@ function bindEvents() {
     }
 
     if (["editItemInput", "editItemSelect", "editExpenseNameSelect"].includes(event.target.id)) {
+      clearEditSettlementSplitAmount();
       fillEditUnitPriceFromItem();
       updateEditAmount();
     }
@@ -1353,6 +1386,7 @@ function bindEvents() {
     if (isMoneyInput(event.target) && !isComposingInputEvent(event)) formatMoneyInput(event.target);
     if (event.target.id === "editQuantityInput" && !isComposingInputEvent(event)) formatQuantityInput(event.target);
     if (["editQuantityInput", "editExpenseUnitPriceInput", "editIncomeUnitPriceInput", "editItemInput", "editItemSelect", "editExpenseNameSelect"].includes(event.target.id)) {
+      clearEditSettlementSplitAmount();
       if (event.target.id === "editItemInput") fillEditUnitPriceFromItem();
       updateEditAmount();
     }
@@ -1429,6 +1463,12 @@ function bindEvents() {
   });
 
   elements.itemList.addEventListener("click", (event) => {
+    const officialButton = event.target.closest(".open-official-item-button");
+    if (officialButton) {
+      event.stopPropagation();
+      openOfficialItemPage(officialButton.dataset.officialId);
+      return;
+    }
     const row = event.target.closest(".management-row");
     if (row) openMasterEditModal("item", row.dataset.name);
   });
@@ -1568,12 +1608,32 @@ function setupSettingsInterfaceGroups() {
   const mdDetails = createSettingsInterfaceGroup("settingsMdManagement", "MD管理");
 
   if (groupMasterPanel) {
+    settingsContent.insertBefore(elements.panels.items, groupMasterPanel);
     settingsContent.insertBefore(groupDetails, groupMasterPanel);
-    groupDetails.querySelector(".settings-interface-group-body").append(groupMasterPanel, elements.panels.items, elements.panels.links);
+    groupDetails.querySelector(".settings-interface-group-body").append(groupMasterPanel, elements.panels.links);
   }
 
   settingsContent.append(mdDetails);
   mdDetails.querySelector(".settings-interface-group-body").append(elements.panels.characters, elements.panels.mdMaster, elements.panels.mdItemLink, elements.panels.mdTagLink);
+}
+
+function setupSettingsPanelCollapse() {
+  document.querySelectorAll("#mapsPanel .settings-panel, #settingsPanel .settings-panel").forEach((panel) => {
+    const header = panel.querySelector(":scope > .settings-header");
+    if (!header || header.querySelector(".settings-panel-toggle")) return;
+
+    const button = document.createElement("button");
+    button.type = "button";
+    button.className = "secondary-button settings-panel-toggle";
+    button.setAttribute("aria-expanded", "true");
+    button.textContent = "-";
+    button.addEventListener("click", () => {
+      const collapsed = panel.classList.toggle("is-collapsed");
+      button.setAttribute("aria-expanded", String(!collapsed));
+      button.textContent = collapsed ? "+" : "-";
+    });
+    header.append(button);
+  });
 }
 
 function createSettingsInterfaceGroup(id, title) {
@@ -2794,7 +2854,7 @@ function importAppData(event) {
       const data = JSON.parse(String(reader.result || "{}"));
       state.entries = Array.isArray(data.entries) ? data.entries.map((entry) => ({ ...entry, tags: normalizeTags(entry.tags) })) : [];
       state.maps = Array.isArray(data.groups) ? data.groups : Array.isArray(data.maps) ? data.maps : [];
-      state.items = Array.isArray(data.items) ? data.items : [];
+      state.items = Array.isArray(data.items) ? data.items.filter((item) => item && item.name).map(normalizeItemMaster) : [];
       state.links = normalizeLinks(data.links || {});
       state.plannedPurchases = Array.isArray(data.plannedPurchases)
         ? data.plannedPurchases.map((planned) => ({
@@ -3032,19 +3092,27 @@ function renderItemList() {
     <div class="item-master-head">
       <span>アイテム名</span>
       <span>販売価格</span>
+      <span>公式ID</span>
+      <span>公式</span>
       <span>操作</span>
     </div>
   `;
 
-  for (const item of state.items) {
-    const row = document.createElement("button");
-    row.type = "button";
+  const sortedItems = [...state.items].sort((a, b) => String(a.name || "").localeCompare(String(b.name || ""), "ja"));
+  for (const item of sortedItems) {
+    const row = document.createElement("div");
     row.className = "item-master-row management-row";
     row.dataset.name = item.name;
+    const officialId = normalizeOfficialItemId(item.officialId);
+    const officialButton = officialId
+      ? `<button class="secondary-button item-master-action item-master-official-ready open-official-item-button" type="button" data-official-id="${escapeHTML(officialId)}">開く</button>`
+      : `<button class="secondary-button item-master-action" type="button" disabled>なし</button>`;
     row.innerHTML = `
       <strong>${escapeHTML(item.name)}</strong>
       <span>${yen.format(item.amount)}</span>
-      <span>編集</span>
+      <span>${escapeHTML(officialId || "-")}</span>
+      <span>${officialButton}</span>
+      <span><button class="secondary-button item-master-action" type="button">編集</button></span>
     `;
     table.append(row);
   }
@@ -3429,6 +3497,7 @@ function toggleMdRunSlot(characterId, mdId, runId) {
     mdId: md.id,
     mdName: md.name,
     source: "manual",
+    partySize: 1,
     occurredAt: runDate.toISOString(),
     createdAt: new Date().toISOString(),
   });
@@ -3457,6 +3526,7 @@ function openMdEntryModal(mdId, characterId = "", runId = "") {
   elements.mdEntryDate.value = run?.date || dateToISO(defaultRunDate);
   elements.mdEntryTime.value = run ? mdRunTime(run) : timeFromDate(defaultRunDate);
   elements.mdEntryDuration.value = run?.durationMinutes ? formatQuantity(run.durationMinutes) : defaultMdDurationMinutes();
+  elements.mdEntryPartySize.value = formatQuantity(mdRunPartySize(run));
   elements.mdEntryLines.replaceChildren();
   if (existingEntries.length > 0) {
     existingEntries.forEach((entry) => addMdEntryLine(entry));
@@ -3528,6 +3598,11 @@ function defaultMdDurationMinutes() {
   const elapsedMs = mdElapsedMilliseconds();
   if (!Number.isFinite(elapsedMs)) return "";
   return String(Math.max(0, Math.round(elapsedMs / 60000)));
+}
+
+function mdRunPartySize(run) {
+  const value = Number(run?.partySize || 1);
+  return Number.isFinite(value) && value >= 1 ? Math.floor(value) : 1;
 }
 
 function startMdTimer() {
@@ -3630,7 +3705,12 @@ function updateMdEntryLineAmount(line) {
   }
   const quantity = parseQuantityInput(line.querySelector(".md-entry-line-quantity").value);
   const unitPrice = parseAmount(priceInput.value);
-  line.querySelector(".md-entry-line-amount").value = quantity > 0 && unitPrice >= 0 ? formatAmount(Math.round(quantity * unitPrice)) : "";
+  const totalAmount = quantity > 0 && unitPrice >= 0 ? Math.round(quantity * unitPrice) : 0;
+  line.querySelector(".md-entry-line-amount").value = totalAmount > 0 ? formatAmount(splitMdEntryAmount(totalAmount, mdEntryPartySize())) : "";
+}
+
+function refreshMdEntryLineAmounts() {
+  elements.mdEntryLines.querySelectorAll(".md-entry-line").forEach(updateMdEntryLineAmount);
 }
 
 function saveMdEntry() {
@@ -3641,6 +3721,8 @@ function saveMdEntry() {
 
   const rows = mdEntryLineRows();
   if (rows.length === 0) return;
+  const partySize = mdEntryPartySize();
+  elements.mdEntryPartySize.value = formatQuantity(partySize);
 
   const baseEntry = {
     date: elements.mdEntryDate.value,
@@ -3656,6 +3738,8 @@ function saveMdEntry() {
     entry.date = baseEntry.date;
     entry.time = baseEntry.time;
     entry.amount = row.amount;
+    entry.mdTotalAmount = row.totalAmount;
+    entry.mdPartySize = partySize;
     entry.map = "";
     entry.item = row.item;
     entry.mdId = md.id;
@@ -3686,9 +3770,10 @@ function mdEntryLineRows() {
     const item = line.querySelector(".md-entry-line-item").value.trim();
     const unitPrice = parseAmount(line.querySelector(".md-entry-line-price").value);
     const quantity = parseQuantityInput(line.querySelector(".md-entry-line-quantity").value);
+    const totalAmount = quantity > 0 && unitPrice >= 0 ? Math.round(quantity * unitPrice) : 0;
     const amount = parseAmount(line.querySelector(".md-entry-line-amount").value);
     if (!item) continue;
-    if (!validateEntryNumbers(unitPrice, quantity, amount)) return [];
+    if (!validateEntryNumbers(unitPrice, quantity, totalAmount)) return [];
     rows.push({
       entryId: line.dataset.entryId || "",
       type: line.querySelector(".md-entry-line-type").value,
@@ -3696,14 +3781,25 @@ function mdEntryLineRows() {
       unitPrice,
       quantity,
       amount,
+      totalAmount,
     });
   }
   return rows;
 }
 
+function mdEntryPartySize() {
+  const value = parseQuantityInput(elements.mdEntryPartySize.value);
+  return Number.isFinite(value) && value >= 1 ? Math.floor(value) : 1;
+}
+
+function splitMdEntryAmount(amount, partySize) {
+  return Math.round((Number(amount) || 0) / Math.max(1, partySize));
+}
+
 function upsertMdRunFromMdEntry(entry, md) {
   const context = state.mdEntryContext;
   const durationMinutes = parseQuantityInput(elements.mdEntryDuration.value) || 0;
+  const partySize = mdEntryPartySize();
   if (context?.runId && context.mdId === md.id) {
     const run = state.mdRuns.find((candidate) => candidate.id === context.runId);
     if (run) {
@@ -3712,6 +3808,7 @@ function upsertMdRunFromMdEntry(entry, md) {
       run.mdName = md.name;
       run.occurredAt = mdEntryOccurredAt(entry.date, entry.time);
       run.durationMinutes = durationMinutes;
+      run.partySize = partySize;
       saveMdRuns();
       return run.id;
     }
@@ -3734,6 +3831,7 @@ function upsertMdRunFromMdEntry(entry, md) {
     mdName: md.name,
     source: "manual",
     durationMinutes,
+    partySize,
     occurredAt,
     createdAt: new Date().toISOString(),
   };
@@ -3866,6 +3964,7 @@ function importMdMonitorEvents(events) {
         mdId: md.id,
         mdName: md.name,
         source: "auto",
+        partySize: 1,
         monitorEventId: eventId,
         occurredAt,
         createdAt: new Date().toISOString(),
@@ -4191,23 +4290,24 @@ function mdRunSlotCell(character, md, runs) {
   cell.classList.toggle("level-locked", isLocked);
   const slots = runs.slice(0, limit);
   while (slots.length < limit) slots.push(null);
-  cell.innerHTML = `
-    <div class="md-slot-summary">${isLocked ? `Lv.${formatLevel(md.conditionLevel)}必要` : `${runs.length}/${limit}`}</div>
-    <div class="md-run-slots">
-      ${slots.map((run) => `
-        <button class="md-run-slot ${run ? "checked" : ""}" type="button"
-          data-character-id="${escapeHTML(character.id)}"
-          data-md-id="${escapeHTML(md.id)}"
-          data-run-id="${run ? escapeHTML(run.id) : ""}"
-          ${isLocked || isReadonly ? "disabled" : ""}
-          title="${isReadonly ? "週間モードで操作してください" : isLocked ? `条件レベル未達: Lv.${formatLevel(md.conditionLevel)}必要` : `左クリック: 周回${run ? "取消" : "登録"} / 右クリック: MD明細追加`}"
-          aria-label="${escapeHTML(character.name)} ${escapeHTML(md.name)} ${isReadonly ? "月間モードでは操作不可" : isLocked ? "条件レベル未達" : run ? "取り消し" : "登録"}">
-          <span class="md-run-orb" aria-hidden="true"></span>
-          <small>${run ? escapeHTML(formatDate(run.date)) : ""}</small>
-        </button>
-      `).join("")}
-    </div>
-  `;
+  cell.innerHTML = isLocked
+    ? `<div class="md-slot-summary">Lv.${formatLevel(md.conditionLevel)}必要</div>`
+    : `
+      <div class="md-run-slots">
+        ${slots.map((run) => `
+          <button class="md-run-slot ${run ? "checked" : ""}" type="button"
+            data-character-id="${escapeHTML(character.id)}"
+            data-md-id="${escapeHTML(md.id)}"
+            data-run-id="${run ? escapeHTML(run.id) : ""}"
+            ${isReadonly ? "disabled" : ""}
+            title="${isReadonly ? "週間モードで操作してください" : `左クリック: 周回${run ? "取消" : "登録"} / 右クリック: MD明細追加`}"
+            aria-label="${escapeHTML(character.name)} ${escapeHTML(md.name)} ${isReadonly ? "月間モードでは操作不可" : run ? "取り消し" : "登録"}">
+            <span class="md-run-orb" aria-hidden="true"></span>
+            <small>${run ? escapeHTML(formatDate(run.date)) : ""}</small>
+          </button>
+        `).join("")}
+      </div>
+    `;
   return cell;
 }
 
@@ -4925,10 +5025,16 @@ function summaryBreakdownEntryMatches(entry, label, panelKey) {
 }
 
 function summaryBreakdownDetailText(entry) {
-  const parts = [`数量${formatQuantity(entryQuantity(entry))}`, `単価 ${yen.format(entry.unitPrice || 0)}`];
+  const parts = [`数量${formatQuantity(entryQuantity(entry))}`, entryUnitPriceDetailText(entry)];
   const mdName = entryMdName(entry);
   if (mdName) parts.push(`MD ${mdName}`);
   return parts.join(" / ");
+}
+
+function entryUnitPriceDetailText(entry) {
+  const unitPrice = formatAmount(entry.unitPrice || 0);
+  const splitPeople = Number(entry.mdPartySize || entry.settlementPeople || 0);
+  return splitPeople > 1 ? `${unitPrice} / ${formatQuantity(splitPeople)}人` : unitPrice;
 }
 
 function renderSimpleList(target, values, emptyText) {
@@ -5673,12 +5779,11 @@ function settlementDistributionBreakdownRows(targetName) {
   const rows = [];
 
   for (const row of settlementEntryRows(elements.settlementRows)) {
-    const quantity = row.quantity / people;
-    const amount = Math.round(row.unitPrice * quantity);
+    const amount = splitSettlementAmount(row.amount, people);
     if (amount <= 0) continue;
     rows.push({
       label: row.item || "名称未設定",
-      detail: `数量${formatQuantity(quantity)} / 単価 ${yen.format(row.unitPrice)}`,
+      detail: `数量${formatQuantity(row.quantity)} / ${formatAmount(row.unitPrice)} / ${formatQuantity(people)}人`,
       amount,
       kind: "明細",
     });
@@ -5686,14 +5791,13 @@ function settlementDistributionBreakdownRows(targetName) {
 
   for (const row of settlementEntryRows(elements.purchaseRows)) {
     const buyerName = row.buyer || "未設定";
-    const sharedQuantity = row.quantity / people;
+    const sharedAmount = splitSettlementAmount(row.amount, people);
     const isBuyerTarget = targetName === buyerName;
-    const quantity = isBuyerTarget ? row.quantity - sharedQuantity : sharedQuantity;
-    const amount = Math.round(row.unitPrice * quantity);
+    const amount = isBuyerTarget ? row.amount - sharedAmount : sharedAmount;
     if (amount <= 0) continue;
     rows.push({
       label: row.item || "名称未設定",
-      detail: `数量${formatQuantity(quantity)} / 単価 ${yen.format(row.unitPrice)}`,
+      detail: `数量${formatQuantity(row.quantity)} / ${formatAmount(row.unitPrice)} / ${formatQuantity(people)}人`,
       amount: isBuyerTarget ? -amount : amount,
       kind: "購入",
     });
@@ -5839,7 +5943,7 @@ function renderMdSummaryDetails(label, entries) {
       ${rows.map((entry) => `
         <span>${escapeHTML(formatDate(entry.date))}</span>
         <strong>${escapeHTML(entry.item || "未設定")}</strong>
-        <small>${escapeHTML(formatQuantity(entry.quantity))} / 単価 ${yen.format(entry.unitPrice || 0)}</small>
+        <small>${escapeHTML(formatQuantity(entry.quantity))} / ${escapeHTML(entryUnitPriceDetailText(entry))}</small>
         <em class="${entry.type === "income" ? "income-text" : "expense-text"}">${entry.type === "income" ? "+" : "-"}${yen.format(entry.amount)}</em>
       `).join("")}
     </div>
@@ -6003,12 +6107,12 @@ function settlementEntryRows(target = elements.settlementRows) {
 function settlementRowsForSelectedTarget() {
   const people = settlementPeopleCount();
   return settlementEntryRows(elements.settlementRows).map((row) => {
-    const quantity = row.quantity / people;
-    const amount = Math.round(row.unitPrice * quantity);
+    const amount = splitSettlementAmount(row.amount, people);
     return {
       ...row,
-      quantity,
       amount,
+      settlementTotalAmount: row.amount,
+      settlementPeople: people,
     };
   });
 }
@@ -6033,29 +6137,33 @@ function purchaseRowsForSelectedTarget() {
   return settlementEntryRows(elements.purchaseRows).flatMap((row) => {
     const buyerName = row.buyer || "未設定";
     const isSelectedBuyer = selectedTargets.has(buyerName);
-    const sharedQuantity = row.quantity / people;
+    const sharedAmount = splitSettlementAmount(row.amount, people);
     if (isSelectedBuyer) {
-      const expenseQuantity = row.quantity - sharedQuantity;
-      const amount = Math.round(row.unitPrice * expenseQuantity);
+      const amount = row.amount - sharedAmount;
       return amount > 0
         ? [{
             ...row,
             type: "expense",
-            quantity: expenseQuantity,
             amount,
+            settlementTotalAmount: row.amount,
+            settlementPeople: people,
             isPurchase: true,
           }]
         : [];
     }
-    const amount = Math.round(row.unitPrice * sharedQuantity);
     return [{
       ...row,
       type: "income",
-      quantity: sharedQuantity,
-      amount,
+      amount: sharedAmount,
+      settlementTotalAmount: row.amount,
+      settlementPeople: people,
       isPurchase: false,
     }];
   });
+}
+
+function splitSettlementAmount(amount, people) {
+  return Math.round((Number(amount) || 0) / Math.max(1, people));
 }
 
 function openSettlementConfirmModal(rows) {
@@ -6071,6 +6179,8 @@ function openSettlementConfirmModal(rows) {
     item: row.item,
     quantity: row.quantity,
     unitPrice: row.unitPrice,
+    settlementTotalAmount: row.settlementTotalAmount || row.amount,
+    settlementPeople: row.settlementPeople || settlementPeopleCount(),
     buyer: row.buyer,
     tags: getTagValues(elements.tags),
   }));
@@ -6096,7 +6206,7 @@ function renderSettlementConfirmList() {
       <span class="settlement-confirm-type ${entry.type === "income" ? "income-text" : "expense-text"}">${entry.type === "income" ? "収入" : "支出"}</span>
       <strong>${escapeHTML(entry.item)}</strong>
       <span>${formatQuantity(entry.quantity)}</span>
-      <span>${yen.format(entry.unitPrice)}</span>
+      <span>${escapeHTML(entryUnitPriceDetailText(entry))}</span>
       <span class="${entry.type === "income" ? "income-text" : "expense-text"}">${entry.type === "income" ? "+" : "-"}${yen.format(entry.amount)}</span>
     `;
     elements.settlementConfirmList.append(row);
@@ -6304,6 +6414,11 @@ function openSettlementModal(scope) {
   }
 
   state.settlementContext = { scope, quantity, unitPrice };
+  if (isEdit) {
+    clearEditSettlementSplitAmount();
+  } else {
+    clearEntrySettlementSplitAmount();
+  }
   elements.settlementPeople.value = "";
   elements.settlementUnitPrice.value = unitPrice > 0 ? formatAmount(unitPrice) : "";
   elements.settlementQuantity.value = "";
@@ -6327,8 +6442,8 @@ function updateSettlementResult() {
     return;
   }
 
-  const quantity = state.settlementContext.quantity / people;
-  const amount = Math.round(quantity * unitPrice);
+  const quantity = state.settlementContext.quantity;
+  const amount = splitSettlementAmount(quantity * unitPrice, people);
   elements.settlementQuantity.value = formatQuantity(quantity);
   elements.settlementAmount.value = formatAmount(amount);
 }
@@ -6337,26 +6452,40 @@ function applySettlementResult() {
   if (!state.settlementContext) return;
   updateSettlementResult();
   if (!elements.settlementQuantity.value || !elements.settlementAmount.value) return;
+  const people = Math.max(1, Math.floor(parseQuantityInput(elements.settlementPeople.value) || 1));
+  const totalAmount = Math.round(state.settlementContext.quantity * parseAmount(elements.settlementUnitPrice.value));
 
   if (state.settlementContext.scope === "entry") {
     elements.unitPrice.value = formatAmount(elements.settlementUnitPrice.value);
     elements.quantity.value = elements.settlementQuantity.value;
     elements.amount.value = elements.settlementAmount.value;
-    updateAmount();
+    elements.amount.dataset.settlementSplitAmount = "true";
+    elements.amount.dataset.settlementPeople = String(people);
+    elements.amount.dataset.settlementTotalAmount = String(totalAmount);
   } else {
     elements.editIncomeUnitPrice.value = formatAmount(elements.settlementUnitPrice.value);
     elements.editQuantity.value = elements.settlementQuantity.value;
     elements.editAmount.value = elements.settlementAmount.value;
-    updateEditAmount();
+    elements.editAmount.dataset.settlementSplitAmount = "true";
+    elements.editAmount.dataset.settlementPeople = String(people);
+    elements.editAmount.dataset.settlementTotalAmount = String(totalAmount);
+    updatePlannedTransferRemainderNotice();
   }
 
   closeSettlementModal();
 }
 
 function updateAmount() {
+  if (elements.amount.dataset.settlementSplitAmount === "true") return;
   const quantity = parseQuantityInput(elements.quantity.value);
   const unitPrice = currentUnitPrice();
   elements.amount.value = quantity > 0 && unitPrice >= 0 ? formatAmount(Math.round(quantity * unitPrice)) : "";
+}
+
+function clearEntrySettlementSplitAmount() {
+  delete elements.amount.dataset.settlementSplitAmount;
+  delete elements.amount.dataset.settlementPeople;
+  delete elements.amount.dataset.settlementTotalAmount;
 }
 
 function currentUnitPrice() {
@@ -6456,6 +6585,7 @@ function openEditModal(id) {
 function closeEditModal() {
   state.editingEntryId = "";
   state.sendingPlannedId = "";
+  clearEditSettlementSplitAmount();
   updatePlannedTransferRemainderNotice();
   elements.editModal.classList.add("hidden");
 }
@@ -6501,6 +6631,12 @@ function saveEditedEntry() {
   entry.mdName = mdNameById(elements.editMd.value);
   entry.quantity = parseQuantityInput(elements.editQuantity.value) || 1;
   entry.unitPrice = editUnitPrice();
+  entry.settlementTotalAmount = parseAmount(elements.editAmount.dataset.settlementTotalAmount || "");
+  entry.settlementPeople = Number(elements.editAmount.dataset.settlementPeople || 0);
+  if (!entry.settlementPeople) {
+    delete entry.settlementTotalAmount;
+    delete entry.settlementPeople;
+  }
   entry.tags = getTagValues(elements.editTags);
   delete entry.memo;
 
@@ -6570,10 +6706,20 @@ function currentEditItemName() {
 }
 
 function updateEditAmount() {
+  if (elements.editAmount.dataset.settlementSplitAmount === "true") {
+    updatePlannedTransferRemainderNotice();
+    return;
+  }
   const quantity = parseQuantityInput(elements.editQuantity.value);
   const unitPrice = editUnitPrice();
   elements.editAmount.value = quantity > 0 && unitPrice >= 0 ? formatAmount(Math.round(quantity * unitPrice)) : "";
   updatePlannedTransferRemainderNotice();
+}
+
+function clearEditSettlementSplitAmount() {
+  delete elements.editAmount.dataset.settlementSplitAmount;
+  delete elements.editAmount.dataset.settlementPeople;
+  delete elements.editAmount.dataset.settlementTotalAmount;
 }
 
 function updatePlannedTransferRemainderNotice() {
@@ -6663,6 +6809,7 @@ function openMasterEditModal(type, name) {
   };
   elements.masterEditTitle.textContent = titleMap[type] || "編集";
   elements.masterAmountLabel.classList.toggle("hidden", type !== "item");
+  elements.masterOfficialIdLabel.classList.toggle("hidden", type !== "item");
   elements.masterJobLabel.classList.toggle("hidden", type !== "character");
   elements.masterCharacterLevelLabel.classList.toggle("hidden", type !== "character");
   elements.masterIconLabel.classList.toggle("hidden", type !== "character");
@@ -6672,6 +6819,7 @@ function openMasterEditModal(type, name) {
   elements.masterName.maxLength = type === "md" ? 48 : 32;
 
   elements.masterAmount.value = "";
+  elements.masterOfficialId.value = "";
   elements.masterJob.value = "";
   elements.masterCharacterLevel.value = "";
   elements.masterIcon.value = "";
@@ -6684,6 +6832,7 @@ function openMasterEditModal(type, name) {
     elements.masterName.value = name;
     const item = findItem(name);
     elements.masterAmount.value = item ? formatAmount(item.amount) : "0";
+    elements.masterOfficialId.value = item?.officialId || "";
   } else if (type === "character") {
     const character = state.characters.find((row) => row.id === name);
     if (!character) return;
@@ -6721,7 +6870,12 @@ function saveMasterEdit() {
   if (type === "map") {
     renameMap(oldName, newName);
   } else if (type === "item") {
-    renameItem(oldName, newName, parseAmount(elements.masterAmount.value));
+    renameItem(
+      oldName,
+      newName,
+      parseAmount(elements.masterAmount.value),
+      normalizeOfficialItemId(elements.masterOfficialId.value),
+    );
   } else if (type === "character") {
     renameCharacter(oldName, newName, elements.masterJob.value.trim(), parseLevelValue(elements.masterCharacterLevel.value), state.pendingMasterIcon);
   } else if (type === "md") {
@@ -6781,13 +6935,14 @@ function renameMap(oldName, newName) {
   saveEntries();
 }
 
-function renameItem(oldName, newName, amount) {
+function renameItem(oldName, newName, amount, officialId = "") {
   const item = findItem(oldName);
   if (!item) return;
   if (oldName !== newName && state.items.some((candidate) => candidate.name === newName)) return;
 
   item.name = newName;
   item.amount = amount;
+  item.officialId = officialId;
   for (const map of Object.keys(state.links)) {
     state.links[map] = state.links[map].map((linkedItem) => (linkedItem === oldName ? newName : linkedItem));
   }
@@ -6847,6 +7002,34 @@ function renameMdDungeon(id, newName, idName, resetType, conditionLevel, default
 
 function findItem(name) {
   return state.items.find((item) => item.name === name);
+}
+
+function normalizeOfficialItemId(value) {
+  const text = String(value || "").trim();
+  const urlMatch = text.match(/\/item\/(\d+)/);
+  if (urlMatch) return urlMatch[1];
+  return text.replace(/[^\d]/g, "");
+}
+
+function officialItemUrl(itemId) {
+  return `${RO_OFFICIAL_ITEM_BASE_URL}/${encodeURIComponent(itemId)}/0/`;
+}
+
+function openOfficialItemPageFromInput(idInput) {
+  const itemId = normalizeOfficialItemId(idInput.value);
+  if (!itemId) {
+    window.alert("公式IDを入力してください。");
+    return;
+  }
+
+  idInput.value = itemId;
+  openOfficialItemPage(itemId);
+}
+
+function openOfficialItemPage(itemId) {
+  const normalizedId = normalizeOfficialItemId(itemId);
+  if (!normalizedId) return;
+  window.open(officialItemUrl(normalizedId), "_blank", "noopener");
 }
 
 function currentType() {
@@ -7010,7 +7193,7 @@ function scrollToSettingsBlock(targetId) {
   if (!target) return;
   const group = target.closest(".settings-interface-group");
   if (group) group.open = true;
-  if (["mapsPanel", "itemsPanel", "linksPanel"].includes(targetId)) document.querySelector("#settingsGroupManagement")?.setAttribute("open", "");
+  if (["mapsPanel", "linksPanel"].includes(targetId)) document.querySelector("#settingsGroupManagement")?.setAttribute("open", "");
   if (["charactersPanel", "mdMasterPanel", "mdItemLinkPanel", "mdTagLinkPanel"].includes(targetId)) document.querySelector("#settingsMdManagement")?.setAttribute("open", "");
   elements.settingsAnchors.forEach((button) => {
     button.classList.toggle("active", button.dataset.settingsTarget === targetId);
@@ -7458,14 +7641,22 @@ function loadItems() {
       if (Array.isArray(items)) {
         return items
           .filter((item) => item && item.name)
-          .map((item) => ({ name: String(item.name), amount: Number(item.amount || 0) }));
+          .map(normalizeItemMaster);
       }
     } catch {
       return [];
     }
   }
 
-  return extractLegacyData().items;
+  return extractLegacyData().items.map(normalizeItemMaster);
+}
+
+function normalizeItemMaster(item) {
+  return {
+    name: String(item.name),
+    amount: Number(item.amount || 0),
+    officialId: normalizeOfficialItemId(item.officialId || item.roItemId || ""),
+  };
 }
 
 function loadLinks() {
@@ -7595,6 +7786,7 @@ function normalizeMdRuns(runs) {
       mdName: String(run.mdName || ""),
       source: run.source === "auto" ? "auto" : "manual",
       durationMinutes: Math.max(0, Number(run.durationMinutes || 0)),
+      partySize: mdRunPartySize(run),
       occurredAt: String(run.occurredAt || ""),
       createdAt: run.createdAt || new Date().toISOString(),
     }));
@@ -7791,6 +7983,7 @@ function isQuantityInput(input) {
   return [
     "quantityInput",
     "mdEntryDurationInput",
+    "mdEntryPartySizeInput",
     "mdEntryQuantityInput",
     "editQuantityInput",
     "plannedQuantityInput",
