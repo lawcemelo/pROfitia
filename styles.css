@@ -1099,6 +1099,10 @@ input[type="text"]:not([inputmode="numeric"]) {
   justify-content: center;
 }
 
+.entry-form.entry-type-settlement .entry-md-detail-button {
+  display: none;
+}
+
 .entry-md-field {
   display: grid;
   gap: 6px;
