@@ -17,6 +17,8 @@ const MONTHLY_BAR_AXIS_MAX_STORAGE_KEY = "game-ledger-monthly-bar-axis-max";
 const MONTHLY_NET_AXIS_MAX_STORAGE_KEY = "game-ledger-monthly-net-axis-max";
 const WEEKLY_MD_AXIS_MAX_STORAGE_KEY = "game-ledger-weekly-md-axis-max";
 const MONTHLY_MD_AXIS_MAX_STORAGE_KEY = "game-ledger-monthly-md-axis-max";
+const WEEKLY_MD_TOTAL_AXIS_MAX_STORAGE_KEY = "game-ledger-weekly-md-total-axis-max";
+const MONTHLY_MD_TOTAL_AXIS_MAX_STORAGE_KEY = "game-ledger-monthly-md-total-axis-max";
 const WEEKLY_TREND_COUNT_STORAGE_KEY = "game-ledger-weekly-trend-count";
 const MONTHLY_TREND_COUNT_STORAGE_KEY = "game-ledger-monthly-trend-count";
 const CHARACTER_STORAGE_KEY = "game-ledger-characters";
@@ -275,6 +277,8 @@ const state = {
   monthlyNetAxisMax: Number(localStorage.getItem(MONTHLY_NET_AXIS_MAX_STORAGE_KEY) || localStorage.getItem(NET_AXIS_MAX_STORAGE_KEY) || 0),
   weeklyMdAxisMax: Number(localStorage.getItem(WEEKLY_MD_AXIS_MAX_STORAGE_KEY) || 0),
   monthlyMdAxisMax: Number(localStorage.getItem(MONTHLY_MD_AXIS_MAX_STORAGE_KEY) || 0),
+  weeklyMdTotalAxisMax: Number(localStorage.getItem(WEEKLY_MD_TOTAL_AXIS_MAX_STORAGE_KEY) || 0),
+  monthlyMdTotalAxisMax: Number(localStorage.getItem(MONTHLY_MD_TOTAL_AXIS_MAX_STORAGE_KEY) || 0),
   weeklyTrendCount: clampTrendPeriodCount(localStorage.getItem(WEEKLY_TREND_COUNT_STORAGE_KEY) || 12),
   monthlyTrendCount: clampTrendPeriodCount(localStorage.getItem(MONTHLY_TREND_COUNT_STORAGE_KEY) || 12),
 };
@@ -1848,6 +1852,9 @@ function updateTopCollapseState() {
 function updateAxisLimitInputs() {
   const limits = currentAxisLimits();
   if (state.summaryView === "md") {
+    elements.barAxisMaxButton.textContent = "合計収支軸登録";
+    elements.barAxisMaxDisplay.parentElement.firstChild.textContent = "合計収支軸 ";
+    elements.barAxisMaxDisplay.textContent = limits.mdTotal > 0 ? yen.format(limits.mdTotal) : "制限なし";
     elements.netAxisMaxButton.textContent = "MD収支軸登録";
     elements.netAxisMaxDisplay.parentElement.firstChild.textContent = "MD収支軸 ";
     elements.netAxisMaxDisplay.textContent = limits.md > 0 ? yen.format(limits.md) : "制限なし";
@@ -1889,15 +1896,19 @@ function updateTrendPeriodCount() {
 
 function updateAxisLimit(axis) {
   const limits = currentAxisLimits();
-  if (state.summaryView === "md" && axis === "bar") return;
   const isMdAxis = state.summaryView === "md";
-  const label = isMdAxis ? "MD収支上限値" : axis === "bar" ? "収入支出上限値" : "収支上限値";
-  const currentValue = isMdAxis ? limits.md : axis === "bar" ? limits.bar : limits.net;
+  const label = isMdAxis
+    ? axis === "bar" ? "合計収支上限値" : "MD収支上限値"
+    : axis === "bar" ? "収入支出上限値" : "収支上限値";
+  const currentValue = isMdAxis ? axis === "bar" ? limits.mdTotal : limits.md : axis === "bar" ? limits.bar : limits.net;
   const input = window.prompt(`${label}（0で未設定）`, currentValue > 0 ? formatAmount(currentValue) : "");
   if (input === null) return;
   const value = parseAmount(input);
   if (state.periodMode === "week") {
-    if (isMdAxis) {
+    if (isMdAxis && axis === "bar") {
+      state.weeklyMdTotalAxisMax = value;
+      localStorage.setItem(WEEKLY_MD_TOTAL_AXIS_MAX_STORAGE_KEY, String(value));
+    } else if (isMdAxis) {
       state.weeklyMdAxisMax = value;
       localStorage.setItem(WEEKLY_MD_AXIS_MAX_STORAGE_KEY, String(value));
     } else if (axis === "bar") {
@@ -1908,7 +1919,10 @@ function updateAxisLimit(axis) {
       localStorage.setItem(WEEKLY_NET_AXIS_MAX_STORAGE_KEY, String(value));
     }
   } else {
-    if (isMdAxis) {
+    if (isMdAxis && axis === "bar") {
+      state.monthlyMdTotalAxisMax = value;
+      localStorage.setItem(MONTHLY_MD_TOTAL_AXIS_MAX_STORAGE_KEY, String(value));
+    } else if (isMdAxis) {
       state.monthlyMdAxisMax = value;
       localStorage.setItem(MONTHLY_MD_AXIS_MAX_STORAGE_KEY, String(value));
     } else if (axis === "bar") {
@@ -1925,8 +1939,8 @@ function updateAxisLimit(axis) {
 
 function currentAxisLimits() {
   return state.periodMode === "week"
-    ? { bar: state.weeklyBarAxisMax, net: state.weeklyNetAxisMax, md: state.weeklyMdAxisMax }
-    : { bar: state.monthlyBarAxisMax, net: state.monthlyNetAxisMax, md: state.monthlyMdAxisMax };
+    ? { bar: state.weeklyBarAxisMax, net: state.weeklyNetAxisMax, md: state.weeklyMdAxisMax, mdTotal: state.weeklyMdTotalAxisMax }
+    : { bar: state.monthlyBarAxisMax, net: state.monthlyNetAxisMax, md: state.monthlyMdAxisMax, mdTotal: state.monthlyMdTotalAxisMax };
 }
 
 function updateStickyTopHeight() {
@@ -2851,6 +2865,8 @@ function exportAppData() {
     monthlyNetAxisMax: state.monthlyNetAxisMax,
     weeklyMdAxisMax: state.weeklyMdAxisMax,
     monthlyMdAxisMax: state.monthlyMdAxisMax,
+    weeklyMdTotalAxisMax: state.weeklyMdTotalAxisMax,
+    monthlyMdTotalAxisMax: state.monthlyMdTotalAxisMax,
   };
   const blob = new Blob([JSON.stringify(data, null, 2)], { type: "application/json" });
   const url = URL.createObjectURL(blob);
@@ -2901,6 +2917,8 @@ function importAppData(event) {
       state.monthlyNetAxisMax = Number(data.monthlyNetAxisMax || data.netAxisMax || 0);
       state.weeklyMdAxisMax = Number(data.weeklyMdAxisMax || 0);
       state.monthlyMdAxisMax = Number(data.monthlyMdAxisMax || 0);
+      state.weeklyMdTotalAxisMax = Number(data.weeklyMdTotalAxisMax || 0);
+      state.monthlyMdTotalAxisMax = Number(data.monthlyMdTotalAxisMax || 0);
       localStorage.setItem(THEME_STORAGE_KEY, state.theme);
       localStorage.setItem(TARGET_BALANCE_STORAGE_KEY, String(state.targetBalance));
       localStorage.setItem(WEEKLY_TARGET_BALANCE_STORAGE_KEY, String(state.weeklyTargetBalance));
@@ -2911,6 +2929,8 @@ function importAppData(event) {
       localStorage.setItem(MONTHLY_NET_AXIS_MAX_STORAGE_KEY, String(state.monthlyNetAxisMax));
       localStorage.setItem(WEEKLY_MD_AXIS_MAX_STORAGE_KEY, String(state.weeklyMdAxisMax));
       localStorage.setItem(MONTHLY_MD_AXIS_MAX_STORAGE_KEY, String(state.monthlyMdAxisMax));
+      localStorage.setItem(WEEKLY_MD_TOTAL_AXIS_MAX_STORAGE_KEY, String(state.weeklyMdTotalAxisMax));
+      localStorage.setItem(MONTHLY_MD_TOTAL_AXIS_MAX_STORAGE_KEY, String(state.monthlyMdTotalAxisMax));
       localStorage.setItem(MD_UNLOCK_STORAGE_KEY, String(state.mdUnlocked));
       localStorage.setItem(MD_LAYOUT_STORAGE_KEY, state.mdLayout);
       localStorage.setItem(MD_MONITOR_CHARACTER_STORAGE_KEY, state.mdMonitorCharacterId);
@@ -6083,17 +6103,36 @@ function renderMdTrendLineChart(periods, rows) {
   const padding = { top: 24, right: 278, bottom: 52, left: 78 };
   const chartWidth = width - padding.left - padding.right;
   const chartHeight = height - padding.top - padding.bottom;
-  const mdAxisMax = currentAxisLimits().md;
+  const axisLimits = currentAxisLimits();
+  const mdAxisMax = axisLimits.md;
+  const totalAxisMax = axisLimits.mdTotal;
   const maxValue = mdAxisMax > 0 ? mdAxisMax : niceCeil(Math.max(...sortedRows.flatMap((row) => row.values), 1));
-  const xOf = (index) => padding.left + (chartWidth * index) / Math.max(periods.length - 1, 1);
+  const maxTotalAmount = totalAxisMax > 0 ? totalAxisMax : niceCeil(Math.max(...periods.map((period) => Math.max(period.net, 0)), 1));
+  const periodSlotWidth = chartWidth / Math.max(periods.length, 1);
+  const xOf = (index) => padding.left + periodSlotWidth * index + periodSlotWidth / 2;
   const yOf = (value) => padding.top + chartHeight - Math.max(0, Math.min(value / maxValue, 1)) * chartHeight;
+  const totalYOf = (value) => padding.top + chartHeight - Math.max(0, Math.min(value / maxTotalAmount, 1)) * chartHeight;
   const colors = ["#2f7d63", "#437db3", "#b7791f", "#7c5cc4", "#c0566a"];
   const gridLines = Array.from({ length: 6 }, (_, index) => {
     const ratio = index / 5;
     const y = padding.top + chartHeight * ratio;
+    const totalValue = maxTotalAmount * (1 - ratio);
     return `
       <line class="chart-grid" x1="${padding.left}" y1="${y}" x2="${width - padding.right}" y2="${y}"></line>
-      <text class="chart-tick chart-left-tick" x="${padding.left - 10}" y="${y + 5}" text-anchor="end">${formatCompactAmount(maxValue * (1 - ratio))}</text>
+      <text class="chart-tick chart-left-tick" x="${padding.left - 10}" y="${y + 5}" text-anchor="end">${formatCompactAmount(totalValue)}</text>
+      <text class="chart-tick chart-right-tick" x="${width - padding.right + 10}" y="${y + 5}">${formatCompactAmount(maxValue * (1 - ratio))}</text>
+    `;
+  }).join("");
+  const totalZeroY = padding.top + chartHeight;
+  const totalBarWidth = Math.min(42, Math.max(18, periodSlotWidth * 0.44));
+  const totalBars = periods.map((period, index) => {
+    const totalValue = Math.max(period.net, 0);
+    const valueY = totalYOf(totalValue);
+    const barHeight = totalValue > 0 ? Math.max(2, totalZeroY - valueY) : 0;
+    return `
+      <rect class="md-total-net-bar" x="${xOf(index) - totalBarWidth / 2}" y="${valueY}" width="${totalBarWidth}" height="${barHeight}">
+        <title>${period.label} 合計収支 ${formatSignedYen(period.net)}</title>
+      </rect>
     `;
   }).join("");
   const lines = sortedRows.map((row, rowIndex) => {
@@ -6104,7 +6143,7 @@ function renderMdTrendLineChart(periods, rows) {
     return `<polyline class="md-trend-line ${muted ? "muted" : ""}" points="${points}" pathLength="1" style="stroke:${color}"></polyline>${dots}`;
   }).join("");
   const labels = periods.map((period, index) => `<text class="chart-label" x="${xOf(index)}" y="${height - 28}" text-anchor="middle">${escapeHTML(period.shortLabel)}</text>`).join("");
-  const legendX = width - padding.right + 28;
+  const legendX = width - padding.right + 62;
   const legendY = padding.top + 4;
   const legend = sortedRows.map((row, index) => {
     const color = colors[index % colors.length];
@@ -6124,11 +6163,15 @@ function renderMdTrendLineChart(periods, rows) {
   return `
     <svg class="combo-chart md-trend-chart" viewBox="0 0 ${width} ${height}" role="img" aria-label="MD別収支推移">
       ${gridLines}
+      <line class="md-total-zero-line" x1="${padding.left}" y1="${totalZeroY}" x2="${width - padding.right}" y2="${totalZeroY}"></line>
       <line class="chart-axis" x1="${padding.left}" y1="${padding.top + chartHeight}" x2="${width - padding.right}" y2="${padding.top + chartHeight}"></line>
       <line class="chart-axis" x1="${padding.left}" y1="${padding.top}" x2="${padding.left}" y2="${padding.top + chartHeight}"></line>
+      <line class="chart-axis" x1="${width - padding.right}" y1="${padding.top}" x2="${width - padding.right}" y2="${padding.top + chartHeight}"></line>
+      ${totalBars}
       ${lines}
       ${labels}
-      <text class="chart-axis-title" x="${padding.left}" y="18">MD収支</text>
+      <text class="chart-axis-title" x="${padding.left}" y="18">合計収支</text>
+      <text class="chart-axis-title" x="${width - padding.right}" y="18" text-anchor="end">MD収支</text>
       <text class="md-trend-legend-title" x="${legendX}" y="${padding.top - 5}">MD凡例</text>
       ${legend}
     </svg>

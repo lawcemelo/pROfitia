@@ -4130,11 +4130,6 @@ label {
   white-space: nowrap;
 }
 
-.chart-axis-controls.md-axis-mode #barAxisMaxButton,
-.chart-axis-controls.md-axis-mode #barAxisMaxButton + span {
-  display: none;
-}
-
 .chart-axis-controls.md-axis-mode {
   width: 100%;
   justify-content: flex-end;
@@ -4342,6 +4337,19 @@ label {
 .md-trend-dot.muted,
 .md-trend-legend-item.muted {
   opacity: 0.28;
+}
+
+.md-total-net-bar {
+  fill: color-mix(in srgb, var(--blue) 52%, rgba(255, 255, 255, 0.56));
+  stroke: none;
+  rx: 2;
+  opacity: 0.74;
+}
+
+.md-total-zero-line {
+  stroke: rgba(61, 74, 92, 0.28);
+  stroke-width: 1;
+  stroke-dasharray: 4 4;
 }
 
 .md-trend-legend-title {
