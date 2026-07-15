@@ -1093,6 +1093,12 @@ input[type="text"]:not([inputmode="numeric"]) {
   align-items: end;
 }
 
+.entry-md-detail-button {
+  width: 100%;
+  min-height: 40px;
+  justify-content: center;
+}
+
 .entry-md-field {
   display: grid;
   gap: 6px;
@@ -4919,6 +4925,7 @@ label {
 #mdEntryForm .settings-header,
 #mdEntryForm .md-entry-meta-row,
 #mdEntryForm .md-entry-lines,
+#mdEntryForm .md-entry-total-panel,
 #mdEntryForm .md-entry-add-line,
 #mdEntryForm .entry-fields,
 #mdEntryForm .edit-price-block,
@@ -4959,6 +4966,37 @@ label {
 .md-entry-lines {
   display: grid;
   gap: 8px;
+}
+
+.md-entry-total-panel {
+  display: flex;
+  justify-content: flex-end;
+  gap: 12px;
+  margin-top: -2px;
+}
+
+.md-entry-total-panel > div {
+  display: grid;
+  grid-template-columns: auto minmax(128px, auto);
+  align-items: center;
+  gap: 10px;
+  min-height: 38px;
+  border: 1px solid color-mix(in srgb, var(--blue) 18%, var(--line));
+  border-radius: 10px;
+  background: color-mix(in srgb, var(--blue) 5%, var(--panel-soft));
+  padding: 7px 12px;
+}
+
+.md-entry-total-panel span {
+  color: var(--muted);
+  font-size: 0.78rem;
+  font-weight: 900;
+}
+
+.md-entry-total-panel strong {
+  text-align: right;
+  font-size: 0.94rem;
+  font-variant-numeric: tabular-nums;
 }
 
 .md-entry-line {
@@ -6515,6 +6553,15 @@ body.md-fullscreen-mode .app-shell {
 }
 
 @media (max-width: 760px) {
+  .md-entry-total-panel {
+    justify-content: stretch;
+    flex-direction: column;
+  }
+
+  .md-entry-total-panel > div {
+    grid-template-columns: auto minmax(0, 1fr);
+  }
+
   .md-comparison-chart {
     grid-template-columns: 1fr;
   }

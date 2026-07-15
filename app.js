@@ -312,6 +312,7 @@ const elements = {
   todayDate: document.querySelector("#todayDateButton"),
   timeToggle: document.querySelector("#timeToggleButton"),
   time: document.querySelector("#timeInput"),
+  openMdEntryFromEntry: document.querySelector("#openMdEntryFromEntryButton"),
   incomeFields: document.querySelector("#incomeFields"),
   expenseFields: document.querySelector("#expenseFields"),
   entryGroupDetails: document.querySelector("#entryGroupDetails"),
@@ -508,6 +509,8 @@ const elements = {
   mdEntryLines: document.querySelector("#mdEntryLines"),
   mdEntryLineTemplate: document.querySelector("#mdEntryLineTemplate"),
   addMdEntryLine: document.querySelector("#addMdEntryLineButton"),
+  mdEntryTotalAmount: document.querySelector("#mdEntryTotalAmount"),
+  mdEntryHourlyAmount: document.querySelector("#mdEntryHourlyAmount"),
   mdEntryItem: document.querySelector("#mdEntryItemInput"),
   mdEntryUnitPriceLabel: document.querySelector("#mdEntryUnitPriceLabel"),
   mdEntryUnitPrice: document.querySelector("#mdEntryUnitPriceInput"),
@@ -854,6 +857,10 @@ function bindEvents() {
 
   elements.todayDate.addEventListener("click", () => {
     elements.date.value = todayISO();
+  });
+
+  elements.openMdEntryFromEntry.addEventListener("click", () => {
+    openMdEntryModal("", "", "", { allowAnyPeriod: true });
   });
 
   elements.timeToggle.addEventListener("click", () => {
@@ -1313,10 +1320,20 @@ function bindEvents() {
   });
   elements.addMdEntryLine.addEventListener("click", () => addMdEntryLine());
   elements.mdEntryForm.addEventListener("change", (event) => {
-    if (event.target.classList.contains("md-entry-line-type")) updateMdEntryLineAccent(event.target.closest(".md-entry-line"));
+    if (event.target === elements.mdEntryMd) {
+      applySelectedMdDefaultsToEntryLines();
+      return;
+    }
+    if (event.target.classList.contains("md-entry-line-type")) {
+      updateMdEntryLineAccent(event.target.closest(".md-entry-line"));
+      updateMdEntryTotals();
+    }
   });
   elements.mdEntryForm.addEventListener("input", (event) => {
-    if (event.target.id === "mdEntryDurationInput" && !isComposingInputEvent(event)) formatQuantityInput(event.target);
+    if (event.target.id === "mdEntryDurationInput" && !isComposingInputEvent(event)) {
+      formatQuantityInput(event.target);
+      updateMdEntryTotals();
+    }
     if (event.target.id === "mdEntryPartySizeInput" && !isComposingInputEvent(event)) {
       formatQuantityInput(event.target);
       refreshMdEntryLineAmounts();
@@ -1325,6 +1342,7 @@ function bindEvents() {
     if (event.target.classList.contains("md-entry-line-price") || event.target.classList.contains("md-entry-line-quantity")) {
       updateMdEntryLineAmount(event.target.closest(".md-entry-line"));
     }
+    if (event.target.closest(".md-entry-line")) updateMdEntryTotals();
   });
   elements.mdEntryForm.addEventListener("click", (event) => {
     const calcButton = event.target.closest(".md-entry-line-calc-button");
@@ -1340,6 +1358,7 @@ function bindEvents() {
     if (!deleteButton) return;
     if (elements.mdEntryLines.children.length <= 1) return;
     deleteButton.closest(".md-entry-line").remove();
+    updateMdEntryTotals();
   });
   elements.mdEntryForm.addEventListener("submit", (event) => {
     event.preventDefault();
@@ -3505,23 +3524,24 @@ function toggleMdRunSlot(characterId, mdId, runId) {
   renderMdManagement();
 }
 
-function openMdEntryModal(mdId, characterId = "", runId = "") {
-  if (!isMdManagementInteractive()) return;
+function openMdEntryModal(mdId, characterId = "", runId = "", options = {}) {
+  if (!options.allowAnyPeriod && !isMdManagementInteractive()) return;
   const run = runId ? state.mdRuns.find((candidate) => candidate.id === runId) : null;
   const initialMdId = run?.mdId || mdId;
-  if (!state.mdDungeons.some((md) => md.id === initialMdId)) return;
+  if (initialMdId && !state.mdDungeons.some((md) => md.id === initialMdId)) return;
   const character = characterId ? state.characters.find((candidate) => candidate.id === characterId) : null;
-  const md = state.mdDungeons.find((candidate) => candidate.id === initialMdId);
+  const md = initialMdId ? state.mdDungeons.find((candidate) => candidate.id === initialMdId) : null;
   if (!run && character && md && !canCharacterEnterMd(character, md)) return;
   const existingEntries = run ? mdEntriesForRun(run) : [];
   state.mdEntryContext = {
-    mdId: initialMdId,
+    mdId: initialMdId || "",
     characterId: characterId || "",
     runId: runId || "",
     wasChecked: Boolean(runId),
     entryIds: existingEntries.map((entry) => entry.id),
   };
   updateMdEntryOptions(initialMdId);
+  elements.mdEntryMd.dataset.previousValue = elements.mdEntryMd.value;
   const defaultRunDate = mdRunDateForSelectedPeriod();
   elements.mdEntryDate.value = run?.date || dateToISO(defaultRunDate);
   elements.mdEntryTime.value = run ? mdRunTime(run) : timeFromDate(defaultRunDate);
@@ -3531,15 +3551,46 @@ function openMdEntryModal(mdId, characterId = "", runId = "") {
   if (existingEntries.length > 0) {
     existingEntries.forEach((entry) => addMdEntryLine(entry));
   } else {
-    const defaultRows = mdDefaultEntryRows(md);
-    if (defaultRows.length > 0) {
-      defaultRows.forEach((row) => addMdEntryLine(row));
-    } else {
-      addMdEntryLine();
-    }
+    replaceMdEntryLines(mdDefaultEntryRows(md));
   }
   elements.mdEntryModal.classList.remove("hidden");
   window.requestAnimationFrame(() => elements.mdEntryLines.querySelector(".md-entry-line-item")?.focus());
+}
+
+function applySelectedMdDefaultsToEntryLines() {
+  const previousValue = elements.mdEntryMd.dataset.previousValue || "";
+  const md = state.mdDungeons.find((candidate) => candidate.id === elements.mdEntryMd.value);
+  if (!md) {
+    if (hasMdEntryDraft()) {
+      const confirmed = window.confirm("入力中の明細行をクリアしますか？");
+      if (!confirmed) {
+        elements.mdEntryMd.value = previousValue;
+        return;
+      }
+    }
+    elements.mdEntryMd.dataset.previousValue = "";
+    replaceMdEntryLines([]);
+    return;
+  }
+  if (hasMdEntryDraft()) {
+    const confirmed = window.confirm("MD構成に紐づくアイテムで明細行を置き換えますか？");
+    if (!confirmed) {
+      elements.mdEntryMd.value = previousValue;
+      return;
+    }
+  }
+  replaceMdEntryLines(mdDefaultEntryRows(md));
+  elements.mdEntryMd.dataset.previousValue = md.id;
+}
+
+function replaceMdEntryLines(rows = []) {
+  elements.mdEntryLines.replaceChildren();
+  if (rows.length > 0) {
+    rows.forEach((row) => addMdEntryLine(row));
+  } else {
+    addMdEntryLine();
+  }
+  updateMdEntryTotals();
 }
 
 function mdDefaultEntryRows(md) {
@@ -3687,6 +3738,7 @@ function addMdEntryLine(row = {}) {
   updateMdEntryLineAmount(line);
   updateMdEntryLineAccent(line);
   elements.mdEntryLines.append(line);
+  updateMdEntryTotals();
 }
 
 function updateMdEntryLineAccent(line) {
@@ -3701,16 +3753,45 @@ function updateMdEntryLineAmount(line) {
   const priceInput = line.querySelector(".md-entry-line-price");
   if (!priceInput.value.trim()) {
     line.querySelector(".md-entry-line-amount").value = "";
+    updateMdEntryTotals();
     return;
   }
   const quantity = parseQuantityInput(line.querySelector(".md-entry-line-quantity").value);
   const unitPrice = parseAmount(priceInput.value);
   const totalAmount = quantity > 0 && unitPrice >= 0 ? Math.round(quantity * unitPrice) : 0;
   line.querySelector(".md-entry-line-amount").value = totalAmount > 0 ? formatAmount(splitMdEntryAmount(totalAmount, mdEntryPartySize())) : "";
+  updateMdEntryTotals();
 }
 
 function refreshMdEntryLineAmounts() {
   elements.mdEntryLines.querySelectorAll(".md-entry-line").forEach(updateMdEntryLineAmount);
+  updateMdEntryTotals();
+}
+
+function updateMdEntryTotals() {
+  if (!elements.mdEntryTotalAmount || !elements.mdEntryHourlyAmount) return;
+  let total = 0;
+  for (const line of elements.mdEntryLines.querySelectorAll(".md-entry-line")) {
+    const amount = parseAmount(line.querySelector(".md-entry-line-amount").value);
+    const type = line.querySelector(".md-entry-line-type").value;
+    total += type === "expense" ? -amount : amount;
+  }
+
+  elements.mdEntryTotalAmount.textContent = formatSignedYen(total);
+  elements.mdEntryTotalAmount.classList.toggle("income-text", total >= 0);
+  elements.mdEntryTotalAmount.classList.toggle("expense-text", total < 0);
+
+  const durationMinutes = parseQuantityInput(elements.mdEntryDuration.value);
+  if (!durationMinutes || durationMinutes <= 0) {
+    elements.mdEntryHourlyAmount.textContent = "--";
+    elements.mdEntryHourlyAmount.classList.remove("income-text", "expense-text");
+    return;
+  }
+
+  const hourly = Math.round(total / (durationMinutes / 60));
+  elements.mdEntryHourlyAmount.textContent = `${formatSignedYen(hourly)}/h`;
+  elements.mdEntryHourlyAmount.classList.toggle("income-text", hourly >= 0);
+  elements.mdEntryHourlyAmount.classList.toggle("expense-text", hourly < 0);
 }
 
 function saveMdEntry() {

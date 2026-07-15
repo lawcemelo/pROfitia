@@ -137,6 +137,7 @@
               </div>
             </div>
 
+            <button class="secondary-button entry-md-detail-button" id="openMdEntryFromEntryButton" type="button">MD明細から入力</button>
             <div class="entry-date-row">
               <div class="entry-date-field">
                 <div class="entry-date-label-row">
@@ -148,10 +149,7 @@
               <button class="date-time-toggle-button" id="timeToggleButton" type="button" aria-expanded="false">&#26178;&#21051;&#12434;&#20837;&#21147;</button>
               <input class="entry-time-input hidden" id="timeInput" type="time" />
             </div>
-            <label class="entry-md-field">
-              MD
-              <select id="entryMdInput"></select>
-            </label>
+            <select class="hidden" id="entryMdInput" aria-hidden="true" tabindex="-1"></select>
             <details class="entry-group-details" id="entryGroupDetails">
               <summary>グループから選択する場合</summary>
               <label>
@@ -841,6 +839,16 @@
             <button class="delete-button md-entry-line-delete" type="button" aria-label="明細行を削除">×</button>
           </div>
         </template>
+        <div class="md-entry-total-panel" aria-label="MD明細合計">
+          <div>
+            <span>合計</span>
+            <strong id="mdEntryTotalAmount">¥0</strong>
+          </div>
+          <div>
+            <span>時給</span>
+            <strong id="mdEntryHourlyAmount">--</strong>
+          </div>
+        </div>
         <div class="entry-fields hidden">
           <label>
             アイテム/項目
