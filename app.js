@@ -1354,6 +1354,9 @@ function bindEvents() {
       updateMdEntryLineAccent(event.target.closest(".md-entry-line"));
       updateMdEntryTotals();
     }
+    if (event.target.classList.contains("md-entry-line-item")) {
+      fillMdEntryLinePriceFromItem(event.target.closest(".md-entry-line"));
+    }
   });
   elements.mdEntryForm.addEventListener("input", (event) => {
     if (event.target.id === "mdEntryDurationInput" && !isComposingInputEvent(event)) {
@@ -1365,6 +1368,9 @@ function bindEvents() {
       refreshMdEntryLineAmounts();
     }
     if (event.target.classList.contains("md-entry-line-quantity") && !isComposingInputEvent(event)) formatQuantityInput(event.target);
+    if (event.target.classList.contains("md-entry-line-item") && !isComposingInputEvent(event)) {
+      fillMdEntryLinePriceFromItem(event.target.closest(".md-entry-line"));
+    }
     if (event.target.classList.contains("md-entry-line-price") || event.target.classList.contains("md-entry-line-quantity")) {
       updateMdEntryLineAmount(event.target.closest(".md-entry-line"));
     }
@@ -4073,6 +4079,15 @@ function updateMdEntryLineAmount(line) {
   const totalAmount = quantity > 0 && unitPrice >= 0 ? Math.round(quantity * unitPrice) : 0;
   line.querySelector(".md-entry-line-amount").value = totalAmount > 0 ? formatAmount(splitMdEntryAmount(totalAmount, mdEntryPartySize())) : "";
   updateMdEntryTotals();
+}
+
+function fillMdEntryLinePriceFromItem(line) {
+  if (!line) return;
+  const itemName = line.querySelector(".md-entry-line-item").value.trim();
+  const item = findItem(itemName);
+  if (!item) return;
+  line.querySelector(".md-entry-line-price").value = formatAmount(item.amount);
+  updateMdEntryLineAmount(line);
 }
 
 function refreshMdEntryLineAmounts() {
