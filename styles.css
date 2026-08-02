@@ -2652,7 +2652,11 @@ label {
 }
 
 .md-item-link-entry-grid {
-  grid-template-columns: minmax(170px, 1fr) minmax(180px, 1fr) minmax(140px, auto);
+  grid-template-columns: minmax(150px, 0.95fr) minmax(120px, 0.75fr) minmax(130px, 0.8fr) minmax(92px, auto) minmax(180px, 1fr) minmax(112px, auto);
+}
+
+.settings-interface-group-body .md-item-link-entry-grid {
+  grid-template-columns: minmax(150px, 0.95fr) minmax(120px, 0.75fr) minmax(130px, 0.8fr) minmax(92px, auto) minmax(180px, 1fr) minmax(112px, auto);
 }
 
 .md-item-link-item-field {
@@ -4488,6 +4492,10 @@ label {
   animation: chartDotFade 0.35s ease-out 0.72s both;
 }
 
+.md-trend-dot.muted {
+  opacity: 0.28 !important;
+}
+
 @keyframes chartLineDraw {
   from {
     stroke-dashoffset: 1;
@@ -4953,9 +4961,13 @@ label {
 
 .md-entry-meta-row {
   display: grid;
-  grid-template-columns: minmax(320px, 1fr) minmax(112px, 128px) minmax(96px, 112px);
+  grid-template-columns: minmax(240px, 1fr) minmax(120px, 0.65fr) minmax(112px, 128px) minmax(96px, 112px);
   gap: 12px;
   align-items: end;
+}
+
+.md-entry-meta-row.without-md-group {
+  grid-template-columns: minmax(320px, 1fr) minmax(112px, 128px) minmax(96px, 112px);
 }
 
 .md-duration-input-wrap {
@@ -5604,6 +5616,57 @@ label {
   font-size: 0.78rem;
   font-weight: 900;
   padding: 0 10px;
+}
+
+.item-master-kana-tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-bottom: 6px;
+}
+
+.item-master-kana-tab {
+  min-height: 32px;
+  border: 1px solid color-mix(in srgb, var(--blue) 20%, var(--line));
+  border-radius: 999px;
+  background: var(--panel-strong);
+  color: var(--muted);
+  cursor: pointer;
+  font-size: 0.78rem;
+  font-weight: 900;
+  padding: 5px 10px;
+}
+
+.item-master-kana-tab.active {
+  border-color: color-mix(in srgb, var(--gold) 72%, var(--line));
+  background: color-mix(in srgb, var(--gold) 22%, var(--panel-strong));
+  color: var(--ink);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--gold) 32%, transparent);
+}
+
+.item-master-search {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+
+.item-master-search-input {
+  min-height: 36px;
+}
+
+.item-master-search-clear {
+  min-height: 36px;
+  padding: 6px 12px;
+}
+
+.item-master-empty {
+  border: 1px dashed rgba(151, 164, 184, 0.72);
+  border-radius: 10px;
+  color: var(--muted);
+  font-weight: 800;
+  padding: 14px;
+  text-align: center;
 }
 
 .item-master-head span:nth-child(2),

@@ -31,11 +31,13 @@ const MD_MONITOR_CHARACTER_STORAGE_KEY = "game-ledger-md-monitor-character";
 const MD_START_TIME_STORAGE_KEY = "game-ledger-md-start-time";
 const MD_START_AT_STORAGE_KEY = "game-ledger-md-start-at";
 const MD_STOPPED_ELAPSED_STORAGE_KEY = "game-ledger-md-stopped-elapsed";
+const MD_DEFAULT_ITEM_GROUP_ID = "default";
 const MD_RESET_TYPES = {
   daily: { label: "日次", limit: 1 },
   weekly2: { label: "週2", limit: 2 },
   weekly1: { label: "週1", limit: 1 },
 };
+const ITEM_MASTER_KANA_GROUPS = ["ア", "カ", "サ", "タ", "ナ", "ハ", "マ", "ヤ", "ラ", "ワ", "その他"];
 const LEGACY_ENTRY_STORAGE_KEY = "money-journal-entries";
 const LEGACY_MAP_STORAGE_KEY = "game-ledger-maps";
 const APP_STORAGE_KEYS = [
@@ -260,6 +262,8 @@ const state = {
   tradeSummarySort: { key: "count", direction: "desc" },
   breakdownSort: { key: "amount", direction: "desc" },
   memoSort: { key: "updatedAt", direction: "desc" },
+  itemMasterKanaFilter: "all",
+  itemMasterSearch: "",
   mdUnlockSequence: [],
   summaryView: "overall",
   expandedMdSummaryRows: new Set(),
@@ -371,6 +375,9 @@ const elements = {
   addMd: document.querySelector("#addMdButton"),
   mdList: document.querySelector("#mdList"),
   mdItemLinkMd: document.querySelector("#mdItemLinkMdInput"),
+  mdItemLinkGroup: document.querySelector("#mdItemLinkGroupInput"),
+  mdItemLinkGroupName: document.querySelector("#mdItemLinkGroupNameInput"),
+  addMdItemGroup: document.querySelector("#addMdItemGroupButton"),
   mdItemLinkItem: document.querySelector("#mdItemLinkItemInput"),
   mdItemLinkItemSuggestions: document.querySelector("#mdItemLinkItemSuggestions"),
   addMdItemLink: document.querySelector("#addMdItemLinkButton"),
@@ -508,6 +515,7 @@ const elements = {
   mdEntryDate: document.querySelector("#mdEntryDateInput"),
   mdEntryTime: document.querySelector("#mdEntryTimeInput"),
   mdEntryMd: document.querySelector("#mdEntryMdInput"),
+  mdEntryGroup: document.querySelector("#mdEntryGroupInput"),
   mdEntryDuration: document.querySelector("#mdEntryDurationInput"),
   mdEntryPartySize: document.querySelector("#mdEntryPartySizeInput"),
   mdEntryLines: document.querySelector("#mdEntryLines"),
@@ -727,11 +735,21 @@ function bindEvents() {
   elements.mdConditionLevel.addEventListener("keydown", submitMdOnEnter);
   elements.mdResetType.addEventListener("keydown", submitMdOnEnter);
   elements.addMdItemLink.addEventListener("click", addMdItemLink);
+  elements.addMdItemGroup.addEventListener("click", addMdItemGroup);
   elements.mdItemLinkMd.addEventListener("change", () => {
+    updateMdItemGroupOptions();
+    renderMdItemLinkList();
+    renderMdItemLinkItemSuggestions();
+    updateMdItemLinkAddButton();
+    updateMdItemGroupAddButton();
+  });
+  elements.mdItemLinkGroup.addEventListener("change", () => {
     renderMdItemLinkList();
     renderMdItemLinkItemSuggestions();
     updateMdItemLinkAddButton();
   });
+  elements.mdItemLinkGroupName.addEventListener("input", updateMdItemGroupAddButton);
+  elements.mdItemLinkGroupName.addEventListener("keydown", submitMdItemGroupOnEnter);
   elements.mdItemLinkItem.addEventListener("input", renderMdItemLinkItemSuggestions);
   elements.mdItemLinkItem.addEventListener("input", updateMdItemLinkAddButton);
   elements.mdItemLinkItem.addEventListener("focus", renderMdItemLinkItemSuggestions);
@@ -751,7 +769,7 @@ function bindEvents() {
   elements.mdItemLinkList.addEventListener("click", (event) => {
     const button = event.target.closest(".delete-md-item-link-button");
     if (!button) return;
-    deleteMdItemLink(button.dataset.mdId, button.dataset.item);
+    deleteMdItemLink(button.dataset.mdId, button.dataset.item, button.dataset.groupId);
   });
   elements.mdList.addEventListener("click", (event) => {
     const visibilityButton = event.target.closest(".md-visibility-button");
@@ -1328,6 +1346,10 @@ function bindEvents() {
       applySelectedMdDefaultsToEntryLines();
       return;
     }
+    if (event.target === elements.mdEntryGroup) {
+      applySelectedMdDefaultsToEntryLines({ keepMdSelection: true });
+      return;
+    }
     if (event.target.classList.contains("md-entry-line-type")) {
       updateMdEntryLineAccent(event.target.closest(".md-entry-line"));
       updateMdEntryTotals();
@@ -1486,6 +1508,18 @@ function bindEvents() {
   });
 
   elements.itemList.addEventListener("click", (event) => {
+    const kanaTab = event.target.closest(".item-master-kana-tab");
+    if (kanaTab) {
+      state.itemMasterKanaFilter = kanaTab.dataset.group || "all";
+      renderItemList();
+      return;
+    }
+    const searchClear = event.target.closest(".item-master-search-clear");
+    if (searchClear) {
+      state.itemMasterSearch = "";
+      renderItemList(true);
+      return;
+    }
     const officialButton = event.target.closest(".open-official-item-button");
     if (officialButton) {
       event.stopPropagation();
@@ -1494,6 +1528,11 @@ function bindEvents() {
     }
     const row = event.target.closest(".management-row");
     if (row) openMasterEditModal("item", row.dataset.name);
+  });
+  elements.itemList.addEventListener("input", (event) => {
+    if (!event.target.classList.contains("item-master-search-input")) return;
+    state.itemMasterSearch = event.target.value;
+    renderItemList(true);
   });
 
   elements.closeMasterEdit.addEventListener("click", closeMasterEditModal);
@@ -3118,12 +3157,50 @@ function renderMapList() {
   }
 }
 
-function renderItemList() {
+function renderItemList(focusSearch = false) {
+  const searchSelection = document.activeElement?.classList?.contains("item-master-search-input")
+    ? document.activeElement.selectionStart
+    : null;
   elements.itemList.replaceChildren();
   if (state.items.length === 0) {
     elements.itemList.textContent = "アイテム未登録";
     return;
   }
+
+  const sortedItems = [...state.items].sort((a, b) => String(a.name || "").localeCompare(String(b.name || ""), "ja"));
+  const groupCounts = new Map(ITEM_MASTER_KANA_GROUPS.map((group) => [group, 0]));
+  for (const item of sortedItems) {
+    const group = itemMasterKanaGroup(item.name);
+    groupCounts.set(group, (groupCounts.get(group) || 0) + 1);
+  }
+  if (state.itemMasterKanaFilter !== "all" && !ITEM_MASTER_KANA_GROUPS.includes(state.itemMasterKanaFilter)) {
+    state.itemMasterKanaFilter = "all";
+  }
+
+  const tabs = document.createElement("div");
+  tabs.className = "item-master-kana-tabs";
+  const tabItems = [
+    { group: "all", label: "全", count: sortedItems.length },
+    ...ITEM_MASTER_KANA_GROUPS.map((group) => ({ group, label: group, count: groupCounts.get(group) || 0 })),
+  ];
+  for (const tab of tabItems) {
+    const button = document.createElement("button");
+    button.type = "button";
+    button.className = "item-master-kana-tab";
+    button.dataset.group = tab.group;
+    button.classList.toggle("active", state.itemMasterKanaFilter === tab.group);
+    button.textContent = `${tab.label} ${tab.count}`;
+    tabs.append(button);
+  }
+  elements.itemList.append(tabs);
+
+  const searchWrap = document.createElement("div");
+  searchWrap.className = "item-master-search";
+  searchWrap.innerHTML = `
+    <input class="item-master-search-input" type="search" inputmode="search" placeholder="タブ内検索" value="${escapeHTML(state.itemMasterSearch)}" aria-label="アイテムマスタを検索" />
+    <button class="secondary-button item-master-search-clear" type="button" ${state.itemMasterSearch ? "" : "disabled"}>クリア</button>
+  `;
+  elements.itemList.append(searchWrap);
 
   const table = document.createElement("div");
   table.className = "item-master-table";
@@ -3137,8 +3214,20 @@ function renderItemList() {
     </div>
   `;
 
-  const sortedItems = [...state.items].sort((a, b) => String(a.name || "").localeCompare(String(b.name || ""), "ja"));
-  for (const item of sortedItems) {
+  const tabFilteredItems = state.itemMasterKanaFilter === "all"
+    ? sortedItems
+    : sortedItems.filter((item) => itemMasterKanaGroup(item.name) === state.itemMasterKanaFilter);
+  const keyword = state.itemMasterSearch.trim().toLowerCase();
+  const filteredItems = keyword
+    ? tabFilteredItems.filter((item) => itemMasterSearchText(item).includes(keyword))
+    : tabFilteredItems;
+  if (filteredItems.length === 0) {
+    const empty = document.createElement("div");
+    empty.className = "item-master-empty";
+    empty.textContent = keyword ? "検索条件に一致するアイテムはありません" : "このタブのアイテムは未登録です";
+    table.append(empty);
+  }
+  for (const item of filteredItems) {
     const row = document.createElement("div");
     row.className = "item-master-row management-row";
     row.dataset.name = item.name;
@@ -3157,6 +3246,37 @@ function renderItemList() {
   }
 
   elements.itemList.append(table);
+  if (focusSearch) {
+    window.requestAnimationFrame(() => {
+      const input = elements.itemList.querySelector(".item-master-search-input");
+      if (!input) return;
+      input.focus();
+      const caret = Number.isFinite(searchSelection) ? searchSelection : input.value.length;
+      input.setSelectionRange(caret, caret);
+    });
+  }
+}
+
+function itemMasterSearchText(item) {
+  const officialId = normalizeOfficialItemId(item.officialId);
+  return `${item.name || ""} ${officialId} ${item.amount || ""} ${yen.format(item.amount || 0)}`.toLowerCase();
+}
+
+function itemMasterKanaGroup(name = "") {
+  const first = String(name).trim().charAt(0);
+  if (!first) return "その他";
+  const kana = first.replace(/[ぁ-ん]/, (char) => String.fromCharCode(char.charCodeAt(0) + 0x60));
+  if ("アイウエオヴ".includes(kana)) return "ア";
+  if ("カキクケコガギグゲゴ".includes(kana)) return "カ";
+  if ("サシスセソザジズゼゾ".includes(kana)) return "サ";
+  if ("タチツテトダヂヅデド".includes(kana)) return "タ";
+  if ("ナニヌネノ".includes(kana)) return "ナ";
+  if ("ハヒフヘホバビブベボパピプペポ".includes(kana)) return "ハ";
+  if ("マミムメモ".includes(kana)) return "マ";
+  if ("ヤユヨ".includes(kana)) return "ヤ";
+  if ("ラリルレロ".includes(kana)) return "ラ";
+  if ("ワヲン".includes(kana)) return "ワ";
+  return "その他";
 }
 
 function addCharacter() {
@@ -3328,7 +3448,74 @@ function normalizeMdDefaultItems(items) {
   return [...new Set(items.map((item) => String(item || "").trim()).filter(Boolean))];
 }
 
+function normalizeMdItemGroups(groups) {
+  if (!Array.isArray(groups)) return [];
+  const seen = new Set();
+  return groups
+    .map((group) => ({
+      id: String(group?.id || crypto.randomUUID()),
+      name: String(group?.name || "").trim(),
+      items: normalizeMdDefaultItems(group?.items),
+    }))
+    .filter((group) => {
+      if (!group.name || seen.has(group.id) || group.id === MD_DEFAULT_ITEM_GROUP_ID) return false;
+      seen.add(group.id);
+      return true;
+    });
+}
+
+function mdItemGroups(md) {
+  if (!md) return [];
+  return [
+    { id: MD_DEFAULT_ITEM_GROUP_ID, name: "既定", items: normalizeMdDefaultItems(md.defaultItems) },
+    ...normalizeMdItemGroups(md.itemGroups),
+  ];
+}
+
+function mdCustomItemGroups(md) {
+  return normalizeMdItemGroups(md?.itemGroups);
+}
+
+function mdItemGroupById(md, groupId = MD_DEFAULT_ITEM_GROUP_ID) {
+  return mdItemGroups(md).find((group) => group.id === groupId) || mdItemGroups(md)[0] || { id: MD_DEFAULT_ITEM_GROUP_ID, name: "既定", items: [] };
+}
+
+function setMdItemGroupItems(md, groupId, items) {
+  if (!md) return;
+  if (groupId === MD_DEFAULT_ITEM_GROUP_ID) {
+    md.defaultItems = normalizeMdDefaultItems(items);
+    return;
+  }
+  md.itemGroups = normalizeMdItemGroups(md.itemGroups);
+  const group = md.itemGroups.find((candidate) => candidate.id === groupId);
+  if (group) group.items = normalizeMdDefaultItems(items);
+}
+
+function removeItemFromMdGroups(md, itemName) {
+  if (!md || !itemName) return;
+  md.defaultItems = normalizeMdDefaultItems(md.defaultItems).filter((item) => item !== itemName);
+  md.itemGroups = normalizeMdItemGroups(md.itemGroups).map((group) => ({
+    ...group,
+    items: normalizeMdDefaultItems(group.items).filter((item) => item !== itemName),
+  }));
+}
+
+function renameItemInMdGroups(md, oldName, newName) {
+  if (!md || !oldName || !newName) return;
+  const renameItems = (items) => normalizeMdDefaultItems(items.map((itemName) => (itemName === oldName ? newName : itemName)));
+  md.defaultItems = renameItems(normalizeMdDefaultItems(md.defaultItems));
+  md.itemGroups = normalizeMdItemGroups(md.itemGroups).map((group) => ({
+    ...group,
+    items: renameItems(normalizeMdDefaultItems(group.items)),
+  }));
+}
+
 function mdDefaultItemsLabel(md) {
+  const groups = mdCustomItemGroups(md);
+  if (groups.length > 0) {
+    const itemCount = groups.reduce((total, group) => total + group.items.length, 0);
+    return `明細 ${itemCount}件 / 区分 ${groups.length}件`;
+  }
   const items = normalizeMdDefaultItems(md?.defaultItems);
   return items.length > 0 ? `明細 ${items.length}件` : "明細未設定";
 }
@@ -3336,19 +3523,47 @@ function mdDefaultItemsLabel(md) {
 function addMdItemLink() {
   const md = state.mdDungeons.find((row) => row.id === elements.mdItemLinkMd.value);
   const itemName = elements.mdItemLinkItem.value.trim();
-  if (!md || !itemName || !findItem(itemName)) return;
-  const items = normalizeMdDefaultItems(md.defaultItems);
+  const groupId = elements.mdItemLinkGroup.value;
+  if (!md || !groupId || !itemName || !findItem(itemName)) return;
+  const group = mdItemGroupById(md, groupId);
+  const items = normalizeMdDefaultItems(group.items);
   if (!items.includes(itemName)) {
-    md.defaultItems = [...items, itemName];
+    setMdItemGroupItems(md, group.id, [...items, itemName]);
     saveMdDungeons();
   }
   elements.mdItemLinkItem.value = "";
   hideMdItemLinkItemSuggestions();
   updateMdItemLinkAddButton();
   updateMdItemLinkOptions(md.id);
+  updateMdItemGroupOptions(group.id);
   renderMdItemLinkList();
   renderMdList();
+  renderMdManagement();
   updateItemHistoryOptions();
+}
+
+function addMdItemGroup() {
+  const md = state.mdDungeons.find((row) => row.id === elements.mdItemLinkMd.value);
+  const name = elements.mdItemLinkGroupName.value.trim();
+  if (!md || !name) return;
+  const groups = mdItemGroups(md);
+  if (groups.some((group) => group.name === name)) return;
+  md.itemGroups = normalizeMdItemGroups(md.itemGroups);
+  const group = { id: crypto.randomUUID(), name, items: [] };
+  md.itemGroups.push(group);
+  elements.mdItemLinkGroupName.value = "";
+  saveMdDungeons();
+  updateMdItemGroupOptions(group.id);
+  updateMdItemGroupAddButton();
+  renderMdItemLinkList();
+  renderMdList();
+  renderMdManagement();
+}
+
+function submitMdItemGroupOnEnter(event) {
+  if (event.key !== "Enter") return;
+  event.preventDefault();
+  addMdItemGroup();
 }
 
 function submitMdItemLinkOnEnter(event) {
@@ -3366,7 +3581,9 @@ function submitMdItemLinkOnEnter(event) {
 function mdItemLinkItemCandidates(query = "") {
   const normalizedQuery = query.trim().toLowerCase();
   const selectedMd = state.mdDungeons.find((row) => row.id === elements.mdItemLinkMd.value);
-  const linkedItems = new Set(normalizeMdDefaultItems(selectedMd?.defaultItems));
+  const selectedGroup = elements.mdItemLinkGroup.value ? mdItemGroupById(selectedMd, elements.mdItemLinkGroup.value) : null;
+  if (!selectedGroup) return [];
+  const linkedItems = new Set(normalizeMdDefaultItems(selectedGroup.items));
   return state.items
     .filter((item) => item?.name && !linkedItems.has(item.name))
     .filter((item) => {
@@ -3417,19 +3634,29 @@ function selectMdItemLinkItem(itemName) {
 function updateMdItemLinkAddButton() {
   const md = state.mdDungeons.find((row) => row.id === elements.mdItemLinkMd.value);
   const item = findItem(elements.mdItemLinkItem.value.trim());
-  const linkedItems = new Set(normalizeMdDefaultItems(md?.defaultItems));
-  elements.addMdItemLink.disabled = !md || !item || linkedItems.has(item.name);
+  const selectedGroup = elements.mdItemLinkGroup.value ? mdItemGroupById(md, elements.mdItemLinkGroup.value) : null;
+  const linkedItems = new Set(normalizeMdDefaultItems(selectedGroup?.items));
+  elements.addMdItemLink.disabled = !md || !selectedGroup || !item || linkedItems.has(item.name);
 }
 
-function deleteMdItemLink(mdId, itemName) {
+function updateMdItemGroupAddButton() {
+  const md = state.mdDungeons.find((row) => row.id === elements.mdItemLinkMd.value);
+  const name = elements.mdItemLinkGroupName.value.trim();
+  const exists = mdItemGroups(md).some((group) => group.name === name);
+  elements.addMdItemGroup.disabled = !md || !name || exists;
+}
+
+function deleteMdItemLink(mdId, itemName, groupId = MD_DEFAULT_ITEM_GROUP_ID) {
   const md = state.mdDungeons.find((row) => row.id === mdId);
   if (!md || !itemName) return;
-  md.defaultItems = normalizeMdDefaultItems(md.defaultItems).filter((item) => item !== itemName);
+  const group = mdItemGroupById(md, groupId);
+  setMdItemGroupItems(md, group.id, normalizeMdDefaultItems(group.items).filter((item) => item !== itemName));
   saveMdDungeons();
   renderMdItemLinkList();
   renderMdItemLinkItemSuggestions();
   updateMdItemLinkAddButton();
   renderMdList();
+  renderMdManagement();
   updateItemHistoryOptions();
 }
 
@@ -3440,8 +3667,31 @@ function updateMdItemLinkOptions(selectedMdId = elements.mdItemLinkMd.value) {
     "MDを選択",
   );
   if (selectedMdId && state.mdDungeons.some((md) => md.id === selectedMdId)) elements.mdItemLinkMd.value = selectedMdId;
+  updateMdItemGroupOptions(elements.mdItemLinkGroup.value);
   renderMdItemLinkItemSuggestions();
   updateMdItemLinkAddButton();
+  updateMdItemGroupAddButton();
+}
+
+function updateMdItemGroupOptions(selectedGroupId = elements.mdItemLinkGroup.value) {
+  const md = state.mdDungeons.find((row) => row.id === elements.mdItemLinkMd.value);
+  const groups = mdCustomItemGroups(md);
+  elements.mdItemLinkGroup.replaceChildren();
+  elements.mdItemLinkGroup.classList.toggle("hidden", groups.length === 0);
+  if (groups.length === 0) {
+    elements.mdItemLinkGroup.value = "";
+    elements.mdItemLinkGroup.disabled = true;
+    return;
+  }
+  for (const group of groups) {
+    const option = document.createElement("option");
+    option.value = group.id;
+    option.textContent = group.name;
+    elements.mdItemLinkGroup.append(option);
+  }
+  elements.mdItemLinkGroup.disabled = false;
+  const selected = groups.some((group) => group.id === selectedGroupId) ? selectedGroupId : groups[0].id;
+  elements.mdItemLinkGroup.value = selected;
 }
 
 function renderMdItemLinkList() {
@@ -3452,9 +3702,16 @@ function renderMdItemLinkList() {
     return;
   }
 
-  const items = normalizeMdDefaultItems(md.defaultItems);
+  const groups = mdCustomItemGroups(md);
+  if (groups.length === 0) {
+    elements.mdItemLinkList.textContent = "区分を追加してください";
+    return;
+  }
+
+  const group = mdItemGroupById(md, elements.mdItemLinkGroup.value || groups[0].id);
+  const items = normalizeMdDefaultItems(group.items);
   if (items.length === 0) {
-    elements.mdItemLinkList.textContent = "MD構成未登録";
+    elements.mdItemLinkList.textContent = "この区分のMD構成は未登録です";
     return;
   }
 
@@ -3464,7 +3721,7 @@ function renderMdItemLinkList() {
     <div class="md-item-link-group">
       <span class="link-tree-toggle"></span>
       <strong>${escapeHTML(md.name)}</strong>
-      <span>${items.length}件</span>
+      <span>${escapeHTML(group.name)} / ${items.length}件</span>
     </div>
   `;
 
@@ -3478,6 +3735,7 @@ function renderMdItemLinkList() {
       <span>${item ? yen.format(item.amount) : "価格未登録"}</span>
       <button class="delete-md-item-link-button" type="button"
         data-md-id="${escapeHTML(md.id)}"
+        data-group-id="${escapeHTML(group.id)}"
         data-item="${escapeHTML(itemName)}"
         aria-label="MD構成を削除">×</button>
     `;
@@ -3562,6 +3820,9 @@ function openMdEntryModal(mdId, characterId = "", runId = "", options = {}) {
   };
   updateMdEntryOptions(initialMdId);
   elements.mdEntryMd.dataset.previousValue = elements.mdEntryMd.value;
+  const initialGroupId = run?.mdItemGroupId || existingEntries.find((entry) => entry.mdItemGroupId)?.mdItemGroupId || MD_DEFAULT_ITEM_GROUP_ID;
+  updateMdEntryGroupOptions(md, initialGroupId);
+  elements.mdEntryGroup.dataset.previousValue = elements.mdEntryGroup.value;
   const defaultRunDate = mdRunDateForSelectedPeriod();
   elements.mdEntryDate.value = run?.date || dateToISO(defaultRunDate);
   elements.mdEntryTime.value = run ? mdRunTime(run) : timeFromDate(defaultRunDate);
@@ -3571,15 +3832,16 @@ function openMdEntryModal(mdId, characterId = "", runId = "", options = {}) {
   if (existingEntries.length > 0) {
     existingEntries.forEach((entry) => addMdEntryLine(entry));
   } else {
-    replaceMdEntryLines(mdDefaultEntryRows(md));
+    replaceMdEntryLines(mdDefaultEntryRows(md, elements.mdEntryGroup.value));
   }
   elements.mdEntryModal.classList.remove("hidden");
   window.requestAnimationFrame(() => elements.mdEntryLines.querySelector(".md-entry-line-item")?.focus());
 }
 
-function applySelectedMdDefaultsToEntryLines() {
+function applySelectedMdDefaultsToEntryLines(options = {}) {
   const previousValue = elements.mdEntryMd.dataset.previousValue || "";
   const md = state.mdDungeons.find((candidate) => candidate.id === elements.mdEntryMd.value);
+  const previousGroupValue = elements.mdEntryGroup.dataset.previousValue || MD_DEFAULT_ITEM_GROUP_ID;
   if (!md) {
     if (hasMdEntryDraft()) {
       const confirmed = window.confirm("入力中の明細行をクリアしますか？");
@@ -3589,18 +3851,22 @@ function applySelectedMdDefaultsToEntryLines() {
       }
     }
     elements.mdEntryMd.dataset.previousValue = "";
+    updateMdEntryGroupOptions(null);
     replaceMdEntryLines([]);
     return;
   }
+  if (!options.keepMdSelection) updateMdEntryGroupOptions(md);
   if (hasMdEntryDraft()) {
     const confirmed = window.confirm("MD構成に紐づくアイテムで明細行を置き換えますか？");
     if (!confirmed) {
       elements.mdEntryMd.value = previousValue;
+      updateMdEntryGroupOptions(state.mdDungeons.find((candidate) => candidate.id === previousValue), previousGroupValue);
       return;
     }
   }
-  replaceMdEntryLines(mdDefaultEntryRows(md));
+  replaceMdEntryLines(mdDefaultEntryRows(md, elements.mdEntryGroup.value));
   elements.mdEntryMd.dataset.previousValue = md.id;
+  elements.mdEntryGroup.dataset.previousValue = elements.mdEntryGroup.value;
 }
 
 function replaceMdEntryLines(rows = []) {
@@ -3613,8 +3879,34 @@ function replaceMdEntryLines(rows = []) {
   updateMdEntryTotals();
 }
 
-function mdDefaultEntryRows(md) {
-  return normalizeMdDefaultItems(md?.defaultItems).map((itemName) => {
+function updateMdEntryGroupOptions(md, selectedGroupId = MD_DEFAULT_ITEM_GROUP_ID) {
+  const groups = mdCustomItemGroups(md);
+  const field = elements.mdEntryGroup.closest(".entry-md-field");
+  const row = elements.mdEntryGroup.closest(".md-entry-meta-row");
+  row?.classList.toggle("without-md-group", groups.length === 0);
+  field?.classList.toggle("hidden", groups.length === 0);
+  elements.mdEntryGroup.replaceChildren();
+  if (groups.length === 0) {
+    elements.mdEntryGroup.value = "";
+    elements.mdEntryGroup.disabled = true;
+    return;
+  }
+  for (const group of groups) {
+    const option = document.createElement("option");
+    option.value = group.id;
+    option.textContent = group.name;
+    elements.mdEntryGroup.append(option);
+  }
+  elements.mdEntryGroup.disabled = false;
+  const selected = groups.some((group) => group.id === selectedGroupId) ? selectedGroupId : groups[0].id;
+  elements.mdEntryGroup.value = selected;
+}
+
+function mdDefaultEntryRows(md, groupId = MD_DEFAULT_ITEM_GROUP_ID) {
+  const groups = mdCustomItemGroups(md);
+  const effectiveGroupId = groups.length > 0 ? (groupId || groups[0].id) : MD_DEFAULT_ITEM_GROUP_ID;
+  const group = mdItemGroupById(md, effectiveGroupId);
+  return normalizeMdDefaultItems(group.items).map((itemName) => {
     const item = findItem(itemName);
     return {
       type: "income",
@@ -3817,6 +4109,7 @@ function updateMdEntryTotals() {
 function saveMdEntry() {
   const md = state.mdDungeons.find((candidate) => candidate.id === elements.mdEntryMd.value);
   if (!md) return;
+  const itemGroup = mdItemGroupById(md, elements.mdEntryGroup.value || MD_DEFAULT_ITEM_GROUP_ID);
   if (!validateNotFutureDate(elements.mdEntryDate.value)) return;
   if (!confirmDistantYear(elements.mdEntryDate.value)) return;
 
@@ -3845,6 +4138,8 @@ function saveMdEntry() {
     entry.item = row.item;
     entry.mdId = md.id;
     entry.mdName = md.name;
+    entry.mdItemGroupId = itemGroup.id;
+    entry.mdItemGroupName = itemGroup.name;
     entry.mdRunId = mdRunId;
     entry.quantity = row.quantity || 1;
     entry.unitPrice = row.unitPrice;
@@ -3901,6 +4196,7 @@ function upsertMdRunFromMdEntry(entry, md) {
   const context = state.mdEntryContext;
   const durationMinutes = parseQuantityInput(elements.mdEntryDuration.value) || 0;
   const partySize = mdEntryPartySize();
+  const itemGroup = mdItemGroupById(md, elements.mdEntryGroup.value || MD_DEFAULT_ITEM_GROUP_ID);
   if (context?.runId && context.mdId === md.id) {
     const run = state.mdRuns.find((candidate) => candidate.id === context.runId);
     if (run) {
@@ -3910,6 +4206,8 @@ function upsertMdRunFromMdEntry(entry, md) {
       run.occurredAt = mdEntryOccurredAt(entry.date, entry.time);
       run.durationMinutes = durationMinutes;
       run.partySize = partySize;
+      run.mdItemGroupId = itemGroup.id;
+      run.mdItemGroupName = itemGroup.name;
       saveMdRuns();
       return run.id;
     }
@@ -3930,6 +4228,8 @@ function upsertMdRunFromMdEntry(entry, md) {
     characterName: character.name,
     mdId: md.id,
     mdName: md.name,
+    mdItemGroupId: itemGroup.id,
+    mdItemGroupName: itemGroup.name,
     source: "manual",
     durationMinutes,
     partySize,
@@ -4311,7 +4611,7 @@ function cssEscape(value) {
 }
 
 function handleMdHeaderDragStart(event) {
-  if (event.target.closest("button")) {
+  if (event.target.closest("button, select, input")) {
     event.preventDefault();
     return;
   }
@@ -5528,7 +5828,7 @@ function itemHistoryNames() {
         ...state.items.map((item) => item.name),
         ...state.entries.map((entry) => entry.item),
         ...state.plannedPurchases.map((planned) => planned.item),
-        ...state.mdDungeons.flatMap((md) => normalizeMdDefaultItems(md.defaultItems)),
+        ...state.mdDungeons.flatMap((md) => mdItemGroups(md).flatMap((group) => group.items)),
       ]
         .map((name) => String(name || "").trim())
         .filter(Boolean),
@@ -7026,7 +7326,7 @@ function deleteMasterEdit() {
       state.links[map] = state.links[map].filter((item) => item !== name);
     }
     for (const md of state.mdDungeons) {
-      md.defaultItems = normalizeMdDefaultItems(md.defaultItems).filter((item) => item !== name);
+      removeItemFromMdGroups(md, name);
     }
     saveItems();
     saveLinks();
@@ -7074,7 +7374,7 @@ function renameItem(oldName, newName, amount, officialId = "") {
     if (entry.item === oldName) entry.item = newName;
   }
   for (const md of state.mdDungeons) {
-    md.defaultItems = normalizeMdDefaultItems(normalizeMdDefaultItems(md.defaultItems).map((itemName) => (itemName === oldName ? newName : itemName)));
+    renameItemInMdGroups(md, oldName, newName);
   }
 
   saveItems();
@@ -7742,6 +8042,8 @@ function loadEntries() {
           tags: normalizeTags(entry.tags),
           mdId: String(entry.mdId || ""),
           mdName: String(entry.mdName || ""),
+          mdItemGroupId: String(entry.mdItemGroupId || ""),
+          mdItemGroupName: String(entry.mdItemGroupName || ""),
           mdRunId: String(entry.mdRunId || ""),
         }))
       : [];
@@ -7882,6 +8184,7 @@ function normalizeMdDungeons(dungeons) {
         name: String(md.name),
         idName: String(md.idName || md.code || md.name),
         defaultItems: normalizeMdDefaultItems(md.defaultItems || md.items),
+        itemGroups: normalizeMdItemGroups(md.itemGroups),
         resetType,
         periodLimit: mdPeriodLimit({ resetType }),
         conditionLevel: parseLevelValue(md.conditionLevel),
@@ -7908,6 +8211,8 @@ function normalizeMdRuns(runs) {
       characterName: String(run.characterName || ""),
       mdId: String(run.mdId || ""),
       mdName: String(run.mdName || ""),
+      mdItemGroupId: String(run.mdItemGroupId || ""),
+      mdItemGroupName: String(run.mdItemGroupName || ""),
       source: run.source === "auto" ? "auto" : "manual",
       durationMinutes: Math.max(0, Number(run.durationMinutes || 0)),
       partySize: mdRunPartySize(run),
