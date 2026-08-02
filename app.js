@@ -3486,6 +3486,11 @@ function mdItemGroupById(md, groupId = MD_DEFAULT_ITEM_GROUP_ID) {
   return mdItemGroups(md).find((group) => group.id === groupId) || mdItemGroups(md)[0] || { id: MD_DEFAULT_ITEM_GROUP_ID, name: "既定", items: [] };
 }
 
+function selectedMdItemLinkGroup(md) {
+  const groups = mdCustomItemGroups(md);
+  return mdItemGroupById(md, groups.length > 0 ? elements.mdItemLinkGroup.value || groups[0].id : MD_DEFAULT_ITEM_GROUP_ID);
+}
+
 function setMdItemGroupItems(md, groupId, items) {
   if (!md) return;
   if (groupId === MD_DEFAULT_ITEM_GROUP_ID) {
@@ -3529,9 +3534,8 @@ function mdDefaultItemsLabel(md) {
 function addMdItemLink() {
   const md = state.mdDungeons.find((row) => row.id === elements.mdItemLinkMd.value);
   const itemName = elements.mdItemLinkItem.value.trim();
-  const groupId = elements.mdItemLinkGroup.value;
-  if (!md || !groupId || !itemName || !findItem(itemName)) return;
-  const group = mdItemGroupById(md, groupId);
+  if (!md || !itemName || !findItem(itemName)) return;
+  const group = selectedMdItemLinkGroup(md);
   const items = normalizeMdDefaultItems(group.items);
   if (!items.includes(itemName)) {
     setMdItemGroupItems(md, group.id, [...items, itemName]);
@@ -3587,7 +3591,7 @@ function submitMdItemLinkOnEnter(event) {
 function mdItemLinkItemCandidates(query = "") {
   const normalizedQuery = query.trim().toLowerCase();
   const selectedMd = state.mdDungeons.find((row) => row.id === elements.mdItemLinkMd.value);
-  const selectedGroup = elements.mdItemLinkGroup.value ? mdItemGroupById(selectedMd, elements.mdItemLinkGroup.value) : null;
+  const selectedGroup = selectedMd ? selectedMdItemLinkGroup(selectedMd) : null;
   if (!selectedGroup) return [];
   const linkedItems = new Set(normalizeMdDefaultItems(selectedGroup.items));
   return state.items
@@ -3640,7 +3644,7 @@ function selectMdItemLinkItem(itemName) {
 function updateMdItemLinkAddButton() {
   const md = state.mdDungeons.find((row) => row.id === elements.mdItemLinkMd.value);
   const item = findItem(elements.mdItemLinkItem.value.trim());
-  const selectedGroup = elements.mdItemLinkGroup.value ? mdItemGroupById(md, elements.mdItemLinkGroup.value) : null;
+  const selectedGroup = md ? selectedMdItemLinkGroup(md) : null;
   const linkedItems = new Set(normalizeMdDefaultItems(selectedGroup?.items));
   elements.addMdItemLink.disabled = !md || !selectedGroup || !item || linkedItems.has(item.name);
 }
@@ -3709,15 +3713,10 @@ function renderMdItemLinkList() {
   }
 
   const groups = mdCustomItemGroups(md);
-  if (groups.length === 0) {
-    elements.mdItemLinkList.textContent = "区分を追加してください";
-    return;
-  }
-
-  const group = mdItemGroupById(md, elements.mdItemLinkGroup.value || groups[0].id);
+  const group = selectedMdItemLinkGroup(md);
   const items = normalizeMdDefaultItems(group.items);
   if (items.length === 0) {
-    elements.mdItemLinkList.textContent = "この区分のMD構成は未登録です";
+    elements.mdItemLinkList.textContent = groups.length > 0 ? "この区分のMD構成は未登録です" : "MD構成未登録";
     return;
   }
 
