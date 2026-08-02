@@ -1538,6 +1538,12 @@ function bindEvents() {
   elements.itemList.addEventListener("input", (event) => {
     if (!event.target.classList.contains("item-master-search-input")) return;
     state.itemMasterSearch = event.target.value;
+    if (isComposingInputEvent(event)) return;
+    renderItemList(true);
+  });
+  elements.itemList.addEventListener("compositionend", (event) => {
+    if (!event.target.classList.contains("item-master-search-input")) return;
+    state.itemMasterSearch = event.target.value;
     renderItemList(true);
   });
 
