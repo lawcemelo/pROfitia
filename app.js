@@ -24,13 +24,14 @@ const MONTHLY_TREND_COUNT_STORAGE_KEY = "game-ledger-monthly-trend-count";
 const CHARACTER_STORAGE_KEY = "game-ledger-characters";
 const MD_STORAGE_KEY = "game-ledger-md-list";
 const MD_RUN_STORAGE_KEY = "game-ledger-md-runs";
-const MD_UNLOCK_STORAGE_KEY = "game-ledger-md-unlocked";
 const MD_LAYOUT_STORAGE_KEY = "game-ledger-md-layout";
 const MD_MONITOR_IMPORTED_STORAGE_KEY = "game-ledger-md-monitor-imported";
 const MD_MONITOR_CHARACTER_STORAGE_KEY = "game-ledger-md-monitor-character";
 const MD_START_TIME_STORAGE_KEY = "game-ledger-md-start-time";
 const MD_START_AT_STORAGE_KEY = "game-ledger-md-start-at";
 const MD_STOPPED_ELAPSED_STORAGE_KEY = "game-ledger-md-stopped-elapsed";
+const MD_TREND_METRIC_STORAGE_KEY = "game-ledger-md-trend-metric";
+const MD_TREND_TOP_LIMIT = 7;
 const MD_DEFAULT_ITEM_GROUP_ID = "default";
 const MD_RESET_TYPES = {
   daily: { label: "日次", limit: 1 },
@@ -65,13 +66,13 @@ const APP_STORAGE_KEYS = [
   CHARACTER_STORAGE_KEY,
   MD_STORAGE_KEY,
   MD_RUN_STORAGE_KEY,
-  MD_UNLOCK_STORAGE_KEY,
   MD_LAYOUT_STORAGE_KEY,
   MD_MONITOR_IMPORTED_STORAGE_KEY,
   MD_MONITOR_CHARACTER_STORAGE_KEY,
   MD_START_TIME_STORAGE_KEY,
   MD_START_AT_STORAGE_KEY,
   MD_STOPPED_ELAPSED_STORAGE_KEY,
+  MD_TREND_METRIC_STORAGE_KEY,
   LEGACY_ENTRY_STORAGE_KEY,
   LEGACY_MAP_STORAGE_KEY,
 ];
@@ -225,7 +226,6 @@ const state = {
   characters: loadCharacters(),
   mdDungeons: loadMdDungeons(),
   mdRuns: loadMdRuns(),
-  mdUnlocked: localStorage.getItem(MD_UNLOCK_STORAGE_KEY) === "true",
   mdLayout: localStorage.getItem(MD_LAYOUT_STORAGE_KEY) === "dungeonRows" ? "dungeonRows" : "characterRows",
   mdMonitorImportedIds: loadStringSet(MD_MONITOR_IMPORTED_STORAGE_KEY),
   mdMonitorCharacterId: localStorage.getItem(MD_MONITOR_CHARACTER_STORAGE_KEY) || "",
@@ -236,8 +236,6 @@ const state = {
   mdMonitorTimer: null,
   mdFullscreen: false,
   mdDrag: null,
-  mdUnlockKeys: new Set(),
-  mdUnlockSequence: [],
   mdEntryContext: null,
   pendingCharacterIcon: "",
   pendingMasterIcon: "",
@@ -264,10 +262,10 @@ const state = {
   memoSort: { key: "updatedAt", direction: "desc" },
   itemMasterKanaFilter: "all",
   itemMasterSearch: "",
-  mdUnlockSequence: [],
   summaryView: "overall",
   expandedMdSummaryRows: new Set(),
   mdTrendMutedLabels: new Set(),
+  mdTrendMetric: localStorage.getItem(MD_TREND_METRIC_STORAGE_KEY) === "hourly" ? "hourly" : "amount",
   mdGridSelection: { characterId: "", mdId: "" },
   search: "",
   typeFilter: "all",
@@ -424,6 +422,8 @@ const elements = {
   summaryFilterClear: document.querySelector("#summaryFilterClearButton"),
   summaryFilterStatus: document.querySelector("#summaryFilterStatus"),
   summaryViewButtons: document.querySelectorAll("[data-summary-view]"),
+  mdTrendMetricToggle: document.querySelector("#mdTrendMetricToggle"),
+  mdTrendMetricButtons: document.querySelectorAll("[data-md-trend-metric]"),
   trendChartTitle: document.querySelector("#trendChartTitle"),
   trendPeriodCount: document.querySelector("#trendPeriodCountInput"),
   trendPeriodCountUnit: document.querySelector("#trendPeriodCountUnit"),
@@ -704,9 +704,6 @@ function bindEvents() {
     button.addEventListener("click", () => scrollToSettingsBlock(button.dataset.settingsTarget));
   });
 
-  document.addEventListener("keydown", handleMdUnlockShortcut);
-  document.addEventListener("keyup", handleMdUnlockKeyRelease);
-  window.addEventListener("blur", resetMdUnlockKeys);
   window.addEventListener("resize", () => {
     updateStickyTopHeight();
     updateMdFullscreenSize();
@@ -798,6 +795,10 @@ function bindEvents() {
     const slot = event.target.closest(".md-run-slot");
     if (slot) {
       if (!isMdManagementInteractive()) return;
+      if (event.shiftKey) {
+        openMdEntryModal(slot.dataset.mdId, slot.dataset.characterId, slot.dataset.runId);
+        return;
+      }
       toggleMdRunSlot(slot.dataset.characterId, slot.dataset.mdId, slot.dataset.runId);
       return;
     }
@@ -1161,6 +1162,17 @@ function bindEvents() {
     button.addEventListener("click", () => {
       state.summaryView = button.dataset.summaryView === "md" ? "md" : "overall";
       renderSummaryViews();
+    });
+  });
+  elements.mdTrendMetricButtons.forEach((button) => {
+    button.addEventListener("click", () => {
+      const metric = button.dataset.mdTrendMetric === "hourly" ? "hourly" : "amount";
+      if (state.mdTrendMetric === metric) return;
+      state.mdTrendMetric = metric;
+      localStorage.setItem(MD_TREND_METRIC_STORAGE_KEY, metric);
+      updateMdTrendMetricToggle();
+      updateAxisLimitInputs();
+      renderYearChart();
     });
   });
   elements.yearChart.addEventListener("click", (event) => {
@@ -1850,6 +1862,7 @@ function renderSummaryViews() {
   elements.summaryViewButtons.forEach((button) => {
     button.classList.toggle("active", button.dataset.summaryView === state.summaryView);
   });
+  updateMdTrendMetricToggle();
   updateTrendPeriodCountInput();
   updateSummaryChartFooter();
   renderPeriodList();
@@ -1872,6 +1885,15 @@ function updateSummaryChartFooter() {
     elements.chartAxisControls.classList.toggle("md-axis-mode", state.summaryView === "md");
   }
   updateAxisLimitInputs();
+}
+
+function updateMdTrendMetricToggle() {
+  if (!elements.mdTrendMetricToggle) return;
+  elements.mdTrendMetricToggle.classList.toggle("hidden", state.summaryView !== "md");
+  elements.mdTrendMetricButtons.forEach((button) => {
+    button.classList.toggle("active", button.dataset.mdTrendMetric === state.mdTrendMetric);
+    button.setAttribute("aria-pressed", String(button.dataset.mdTrendMetric === state.mdTrendMetric));
+  });
 }
 
 function refreshConfigurationViews(selectedMap = elements.linkMap.value) {
@@ -1903,14 +1925,19 @@ function updateTopCollapseState() {
 function updateAxisLimitInputs() {
   const limits = currentAxisLimits();
   if (state.summaryView === "md") {
+    const isHourlyTrend = state.mdTrendMetric === "hourly";
+    elements.barAxisMaxButton.disabled = false;
     elements.barAxisMaxButton.textContent = "合計収支軸登録";
     elements.barAxisMaxDisplay.parentElement.firstChild.textContent = "合計収支軸 ";
     elements.barAxisMaxDisplay.textContent = limits.mdTotal > 0 ? yen.format(limits.mdTotal) : "制限なし";
-    elements.netAxisMaxButton.textContent = "MD収支軸登録";
-    elements.netAxisMaxDisplay.parentElement.firstChild.textContent = "MD収支軸 ";
-    elements.netAxisMaxDisplay.textContent = limits.md > 0 ? yen.format(limits.md) : "制限なし";
+    elements.netAxisMaxButton.disabled = isHourlyTrend;
+    elements.netAxisMaxButton.textContent = isHourlyTrend ? "MD時給軸 自動" : "MD収支軸登録";
+    elements.netAxisMaxDisplay.parentElement.firstChild.textContent = isHourlyTrend ? "MD時給軸 " : "MD収支軸 ";
+    elements.netAxisMaxDisplay.textContent = isHourlyTrend ? "自動" : limits.md > 0 ? yen.format(limits.md) : "制限なし";
     return;
   }
+  elements.barAxisMaxButton.disabled = false;
+  elements.netAxisMaxButton.disabled = false;
   elements.netAxisMaxButton.textContent = "収支軸登録";
   elements.netAxisMaxDisplay.parentElement.firstChild.textContent = "収支軸 ";
   elements.barAxisMaxDisplay.textContent = limits.bar > 0 ? yen.format(limits.bar) : "制限なし";
@@ -2902,7 +2929,6 @@ function exportAppData() {
     characters: state.characters,
     mdDungeons: state.mdDungeons,
     mdRuns: state.mdRuns,
-    mdUnlocked: state.mdUnlocked,
     mdLayout: state.mdLayout,
     mdMonitorImportedIds: [...state.mdMonitorImportedIds],
     mdMonitorCharacterId: state.mdMonitorCharacterId,
@@ -2954,7 +2980,6 @@ function importAppData(event) {
       state.characters = normalizeCharacters(data.characters);
       state.mdDungeons = normalizeMdDungeons(data.mdDungeons);
       state.mdRuns = normalizeMdRuns(data.mdRuns);
-      state.mdUnlocked = Boolean(data.mdUnlocked);
       state.mdLayout = data.mdLayout === "dungeonRows" ? "dungeonRows" : "characterRows";
       state.mdMonitorImportedIds = new Set(Array.isArray(data.mdMonitorImportedIds) ? data.mdMonitorImportedIds.map(String) : []);
       state.mdMonitorCharacterId = String(data.mdMonitorCharacterId || "");
@@ -2982,7 +3007,6 @@ function importAppData(event) {
       localStorage.setItem(MONTHLY_MD_AXIS_MAX_STORAGE_KEY, String(state.monthlyMdAxisMax));
       localStorage.setItem(WEEKLY_MD_TOTAL_AXIS_MAX_STORAGE_KEY, String(state.weeklyMdTotalAxisMax));
       localStorage.setItem(MONTHLY_MD_TOTAL_AXIS_MAX_STORAGE_KEY, String(state.monthlyMdTotalAxisMax));
-      localStorage.setItem(MD_UNLOCK_STORAGE_KEY, String(state.mdUnlocked));
       localStorage.setItem(MD_LAYOUT_STORAGE_KEY, state.mdLayout);
       localStorage.setItem(MD_MONITOR_CHARACTER_STORAGE_KEY, state.mdMonitorCharacterId);
       saveEntries();
@@ -4280,7 +4304,7 @@ function isMdManagementInteractive() {
 function updateMdActionGuide() {
   if (!elements.mdActionGuide) return;
   elements.mdActionGuide.textContent = isMdManagementInteractive()
-    ? "MD完了時は左クリックでチェック、右クリックで明細付きチェック。"
+    ? "MD完了時は左クリックでチェック、Shiftを押しながら左クリックで明細付きチェック。"
     : "週間モードにしてください";
 }
 
@@ -4721,7 +4745,7 @@ function mdRunSlotCell(character, md, runs) {
             data-md-id="${escapeHTML(md.id)}"
             data-run-id="${run ? escapeHTML(run.id) : ""}"
             ${isReadonly ? "disabled" : ""}
-            title="${isReadonly ? "週間モードで操作してください" : `左クリック: 周回${run ? "取消" : "登録"} / 右クリック: MD明細追加`}"
+            title="${isReadonly ? "週間モードで操作してください" : `左クリック: 周回${run ? "取消" : "登録"} / Shift+左クリック: MD明細追加`}"
             aria-label="${escapeHTML(character.name)} ${escapeHTML(md.name)} ${isReadonly ? "月間モードでは操作不可" : run ? "取り消し" : "登録"}">
             <span class="md-run-orb" aria-hidden="true"></span>
             <small>${run ? escapeHTML(formatDate(run.date)) : ""}</small>
@@ -6259,16 +6283,17 @@ function renderSettlementDistributionBreakdown(targetName, rows) {
 
 function renderMdComparisonChart() {
   const periods = buildMdTrendPeriods();
-  const mdRows = buildMdTopTrendRows(periods).slice(0, 5);
+  const isHourlyTrend = state.mdTrendMetric === "hourly";
+  const mdRows = buildMdTopTrendRows(periods, state.mdTrendMetric).slice(0, MD_TREND_TOP_LIMIT);
   const trendCount = currentTrendPeriodCount();
-  elements.trendChartTitle.textContent = `MD TOP5比較 ${state.periodMode === "week" ? `週次${trendCount}週` : `月次${trendCount}か月`}`;
+  elements.trendChartTitle.textContent = `MD TOP${MD_TREND_TOP_LIMIT}${isHourlyTrend ? "時給" : "総額"}比較 ${state.periodMode === "week" ? `週次${trendCount}週` : `月次${trendCount}か月`}`;
 
   if (mdRows.length === 0) {
-    elements.yearChart.innerHTML = `<div class="empty-state compact-empty">MDデータがありません</div>`;
+    elements.yearChart.innerHTML = `<div class="empty-state compact-empty">${isHourlyTrend ? "攻略時間付きのMDデータがありません" : "MDデータがありません"}</div>`;
     return;
   }
 
-  elements.yearChart.innerHTML = renderMdTrendLineChart(periods, mdRows);
+  elements.yearChart.innerHTML = renderMdTrendLineChart(periods, mdRows, state.mdTrendMetric);
 }
 
 function renderMdBarRows(rows, max, valueLabel) {
@@ -6389,34 +6414,63 @@ function buildMdTrendPeriods() {
   return state.periodMode === "week" ? buildWeeklyChartRows() : buildMonthlyChartRows();
 }
 
-function buildMdTopTrendRows(periods) {
+function buildMdTopTrendRows(periods, metric = "amount") {
+  const isHourlyTrend = metric === "hourly";
   const labels = new Map();
   for (const period of periods) {
     period.byMd = new Map();
+    period.durationByMd = new Map();
   }
   for (const entry of currentSummaryEntries()) {
     const date = entryDateTime(entry);
-    const period = periods.find((row) => {
-      if (state.periodMode === "week") return isEntryInPeriod(entry, row.start, row.end);
-      const key = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}`;
-      return row.key === key;
-    });
+    const period = findMdTrendPeriod(periods, date);
     if (!period) continue;
     const label = entryMdName(entry) || "未分類MD";
     const amount = entry.type === "income" ? entry.amount : -entry.amount;
     period.byMd.set(label, (period.byMd.get(label) || 0) + amount);
     labels.set(label, (labels.get(label) || 0) + amount);
   }
-  return [...labels.entries()]
-    .map(([label, total]) => ({
-      label,
-      total,
-      values: periods.map((period) => period.byMd.get(label) || 0),
-    }))
+
+  if (isHourlyTrend) {
+    for (const run of state.mdRuns) {
+      const duration = Number(run.durationMinutes || 0);
+      if (!duration) continue;
+      const period = findMdTrendPeriod(periods, mdRunDateTime(run));
+      if (!period) continue;
+      const label = run.mdName || mdNameById(run.mdId) || "未分類MD";
+      period.durationByMd.set(label, (period.durationByMd.get(label) || 0) + duration);
+    }
+  }
+
+  return [...labels.keys()]
+    .map((label) => {
+      const values = periods.map((period) => {
+        const amount = period.byMd.get(label) || 0;
+        if (!isHourlyTrend) return amount;
+        const hours = (period.durationByMd.get(label) || 0) / 60;
+        return hours > 0 ? Math.round(amount / hours) : 0;
+      });
+      return {
+        label,
+        total: isHourlyTrend ? values.reduce((sum, value) => sum + value, 0) : labels.get(label),
+        values,
+        hasTrendValue: values.some((value) => value !== 0),
+      };
+    })
+    .filter((row) => !isHourlyTrend || row.hasTrendValue)
     .sort(compareMdTrendRowsForCurrentPeriod);
 }
 
-function renderMdTrendLineChart(periods, rows) {
+function findMdTrendPeriod(periods, date) {
+  return periods.find((row) => {
+    if (state.periodMode === "week") return date >= row.start && date <= row.end;
+    const key = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}`;
+    return row.key === key;
+  });
+}
+
+function renderMdTrendLineChart(periods, rows, metric = "amount") {
+  const isHourlyTrend = metric === "hourly";
   const sortedRows = [...rows].sort(compareMdTrendRowsForCurrentPeriod);
   const width = 960;
   const height = 300;
@@ -6426,13 +6480,14 @@ function renderMdTrendLineChart(periods, rows) {
   const axisLimits = currentAxisLimits();
   const mdAxisMax = axisLimits.md;
   const totalAxisMax = axisLimits.mdTotal;
-  const maxValue = mdAxisMax > 0 ? mdAxisMax : niceCeil(Math.max(...sortedRows.flatMap((row) => row.values), 1));
+  const mdAutoValues = sortedRows.flatMap((row) => row.values.map((value) => Math.max(value, 0)));
+  const maxValue = !isHourlyTrend && mdAxisMax > 0 ? mdAxisMax : niceCeil(Math.max(...mdAutoValues, 1));
   const maxTotalAmount = totalAxisMax > 0 ? totalAxisMax : niceCeil(Math.max(...periods.map((period) => Math.max(period.net, 0)), 1));
   const periodSlotWidth = chartWidth / Math.max(periods.length, 1);
   const xOf = (index) => padding.left + periodSlotWidth * index + periodSlotWidth / 2;
   const yOf = (value) => padding.top + chartHeight - Math.max(0, Math.min(value / maxValue, 1)) * chartHeight;
   const totalYOf = (value) => padding.top + chartHeight - Math.max(0, Math.min(value / maxTotalAmount, 1)) * chartHeight;
-  const colors = ["#2f7d63", "#437db3", "#b7791f", "#7c5cc4", "#c0566a"];
+  const colors = ["#2f7d63", "#437db3", "#b7791f", "#7c5cc4", "#c0566a", "#0891b2", "#65a30d"];
   const gridLines = Array.from({ length: 6 }, (_, index) => {
     const ratio = index / 5;
     const y = padding.top + chartHeight * ratio;
@@ -6459,7 +6514,7 @@ function renderMdTrendLineChart(periods, rows) {
     const color = colors[rowIndex % colors.length];
     const muted = state.mdTrendMutedLabels.has(row.label);
     const points = row.values.map((value, index) => `${xOf(index)},${yOf(value)}`).join(" ");
-    const dots = row.values.map((value, index) => `<circle class="md-trend-dot ${muted ? "muted" : ""}" cx="${xOf(index)}" cy="${yOf(value)}" r="3.5" fill="${color}"><title>${row.label} ${periods[index].label} ${yen.format(value)}</title></circle>`).join("");
+    const dots = row.values.map((value, index) => `<circle class="md-trend-dot ${muted ? "muted" : ""}" cx="${xOf(index)}" cy="${yOf(value)}" r="3.5" fill="${color}"><title>${row.label} ${periods[index].label} ${isHourlyTrend ? "時給" : "収支"} ${formatMdTrendValue(value, metric)}</title></circle>`).join("");
     return `<polyline class="md-trend-line ${muted ? "muted" : ""}" points="${points}" pathLength="1" style="stroke:${color}"></polyline>${dots}`;
   }).join("");
   const labels = periods.map((period, index) => `<text class="chart-label" x="${xOf(index)}" y="${height - 28}" text-anchor="middle">${escapeHTML(period.shortLabel)}</text>`).join("");
@@ -6481,7 +6536,7 @@ function renderMdTrendLineChart(periods, rows) {
     `;
   }).join("");
   return `
-    <svg class="combo-chart md-trend-chart" viewBox="0 0 ${width} ${height}" role="img" aria-label="MD別収支推移">
+    <svg class="combo-chart md-trend-chart" viewBox="0 0 ${width} ${height}" role="img" aria-label="${isHourlyTrend ? "MD別時給推移" : "MD別収支推移"}">
       ${gridLines}
       <line class="md-total-zero-line" x1="${padding.left}" y1="${totalZeroY}" x2="${width - padding.right}" y2="${totalZeroY}"></line>
       <line class="chart-axis" x1="${padding.left}" y1="${padding.top + chartHeight}" x2="${width - padding.right}" y2="${padding.top + chartHeight}"></line>
@@ -6491,11 +6546,15 @@ function renderMdTrendLineChart(periods, rows) {
       ${lines}
       ${labels}
       <text class="chart-axis-title" x="${padding.left}" y="18">合計収支</text>
-      <text class="chart-axis-title" x="${width - padding.right}" y="18" text-anchor="end">MD収支</text>
+      <text class="chart-axis-title" x="${width - padding.right}" y="18" text-anchor="end">${isHourlyTrend ? "MD時給" : "MD収支"}</text>
       <text class="md-trend-legend-title" x="${legendX}" y="${padding.top - 5}">MD凡例</text>
       ${legend}
     </svg>
   `;
+}
+
+function formatMdTrendValue(value, metric = "amount") {
+  return metric === "hourly" ? `${yen.format(value)}/h` : yen.format(value);
 }
 
 function toggleMdTrendMuted(label) {
@@ -7481,7 +7540,6 @@ function currentType() {
 }
 
 function showTab(tab) {
-  if (tab === "md" && !state.mdUnlocked) unlockMdTab();
   const currentTab = [...elements.tabs].find((button) => button.classList.contains("active"))?.dataset.tab;
   const shouldResetScroll = currentTab && currentTab !== tab;
 
@@ -7548,88 +7606,8 @@ function ensureMdTabWeeklyMode() {
   if (state.periodMode !== "week") setPeriodMode("week");
 }
 
-function handleMdUnlockShortcut(event) {
-  const keyCode = mdUnlockKeyCode(event);
-  if (isMdUnlockModifier(keyCode)) {
-    state.mdUnlockKeys.add(keyCode);
-  }
-  syncMdUnlockModifierKeys(event);
-  if (!hasMdUnlockModifier()) {
-    resetMdUnlockKeys();
-    return;
-  }
-  if (event.metaKey) {
-    resetMdUnlockKeys();
-    return;
-  }
-  if (keyCode === "KeyR" || keyCode === "KeyO") {
-    state.mdUnlockKeys.add(keyCode);
-    updateMdUnlockSequence(keyCode);
-    event.preventDefault();
-  }
-  const pressedTogether = hasMdUnlockModifier() && state.mdUnlockKeys.has("KeyR") && state.mdUnlockKeys.has("KeyO");
-  const pressedInOrder = hasMdUnlockModifier() && state.mdUnlockSequence.join("") === "KeyRKeyO";
-  if (!pressedTogether && !pressedInOrder) return;
-
-  resetMdUnlockKeys();
-  unlockMdTab();
-  showTab("md");
-}
-
-function updateMdUnlockSequence(keyCode) {
-  const expected = state.mdUnlockSequence.length === 0 ? "KeyR" : "KeyO";
-  state.mdUnlockSequence = keyCode === expected ? [...state.mdUnlockSequence, keyCode] : keyCode === "KeyR" ? ["KeyR"] : [];
-}
-
-function handleMdUnlockKeyRelease(event) {
-  const keyCode = mdUnlockKeyCode(event);
-  if (isMdUnlockModifier(keyCode)) {
-    resetMdUnlockKeys();
-    return;
-  }
-  if (keyCode === "KeyR" || keyCode === "KeyO") state.mdUnlockKeys.delete(keyCode);
-  syncMdUnlockModifierKeys(event);
-  if (!hasMdUnlockModifier()) resetMdUnlockKeys();
-}
-
-function mdUnlockKeyCode(event) {
-  if (event.code === "AltLeft" || event.code === "AltRight" || event.key === "Alt") return "Alt";
-  if (event.code === "ShiftLeft" || event.code === "ShiftRight" || event.key === "Shift") return "Shift";
-  if (event.code === "ControlLeft" || event.code === "ControlRight" || event.key === "Control") return "Control";
-  if (event.code === "KeyR" || String(event.key).toLowerCase() === "r") return "KeyR";
-  if (event.code === "KeyO" || String(event.key).toLowerCase() === "o") return "KeyO";
-  return event.code || event.key || "";
-}
-
-function isMdUnlockModifier(keyCode) {
-  return keyCode === "Alt" || keyCode === "Shift" || keyCode === "Control";
-}
-
-function hasMdUnlockModifier() {
-  return state.mdUnlockKeys.has("Alt") || state.mdUnlockKeys.has("Shift") || state.mdUnlockKeys.has("Control");
-}
-
-function syncMdUnlockModifierKeys(event) {
-  if (event.altKey) state.mdUnlockKeys.add("Alt");
-  if (event.shiftKey) state.mdUnlockKeys.add("Shift");
-  if (event.ctrlKey) state.mdUnlockKeys.add("Control");
-}
-
-function resetMdUnlockKeys() {
-  state.mdUnlockKeys.clear();
-  state.mdUnlockSequence = [];
-}
-
-function unlockMdTab() {
-  if (!state.mdUnlocked) {
-    state.mdUnlocked = true;
-    localStorage.setItem(MD_UNLOCK_STORAGE_KEY, "true");
-  }
-  updateMdTabVisibility();
-}
-
 function updateMdTabVisibility() {
-  elements.mdTab.classList.toggle("hidden", !state.mdUnlocked);
+  elements.mdTab.classList.remove("hidden");
 }
 
 function scrollToSettingsBlock(targetId) {
