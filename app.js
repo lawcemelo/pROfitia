@@ -264,7 +264,7 @@ const state = {
   itemMasterSearch: "",
   summaryView: "overall",
   expandedMdSummaryRows: new Set(),
-  mdTrendMutedLabels: new Set(),
+  mdTrendHighlightedLabels: new Set(),
   mdTrendMetric: localStorage.getItem(MD_TREND_METRIC_STORAGE_KEY) === "hourly" ? "hourly" : "amount",
   mdGridSelection: { characterId: "", mdId: "" },
   search: "",
@@ -1178,14 +1178,14 @@ function bindEvents() {
   elements.yearChart.addEventListener("click", (event) => {
     const legendItem = event.target.closest(".md-trend-legend-item[data-md-label]");
     if (!legendItem) return;
-    toggleMdTrendMuted(legendItem.dataset.mdLabel);
+    toggleMdTrendHighlight(legendItem.dataset.mdLabel);
   });
   elements.yearChart.addEventListener("keydown", (event) => {
     if (!["Enter", " "].includes(event.key)) return;
     const legendItem = event.target.closest(".md-trend-legend-item[data-md-label]");
     if (!legendItem) return;
     event.preventDefault();
-    toggleMdTrendMuted(legendItem.dataset.mdLabel);
+    toggleMdTrendHighlight(legendItem.dataset.mdLabel);
   });
   elements.trendPeriodCount.addEventListener("change", updateTrendPeriodCount);
   elements.trendPeriodCount.addEventListener("blur", updateTrendPeriodCount);
@@ -6510,23 +6510,28 @@ function renderMdTrendLineChart(periods, rows, metric = "amount") {
       </rect>
     `;
   }).join("");
-  const lines = sortedRows.map((row, rowIndex) => {
-    const color = colors[rowIndex % colors.length];
-    const muted = state.mdTrendMutedLabels.has(row.label);
+  const rowRenderItems = sortedRows.map((row, rowIndex) => ({
+    row,
+    color: colors[rowIndex % colors.length],
+    highlighted: state.mdTrendHighlightedLabels.has(row.label),
+  }));
+  const lineRenderItems = [
+    ...rowRenderItems.filter((item) => !item.highlighted),
+    ...rowRenderItems.filter((item) => item.highlighted),
+  ];
+  const lines = lineRenderItems.map(({ row, color, highlighted }) => {
     const points = row.values.map((value, index) => `${xOf(index)},${yOf(value)}`).join(" ");
-    const dots = row.values.map((value, index) => `<circle class="md-trend-dot ${muted ? "muted" : ""}" cx="${xOf(index)}" cy="${yOf(value)}" r="3.5" fill="${color}"><title>${row.label} ${periods[index].label} ${isHourlyTrend ? "時給" : "収支"} ${formatMdTrendValue(value, metric)}</title></circle>`).join("");
-    return `<polyline class="md-trend-line ${muted ? "muted" : ""}" points="${points}" pathLength="1" style="stroke:${color}"></polyline>${dots}`;
+    const dots = row.values.map((value, index) => `<circle class="md-trend-dot ${highlighted ? "highlighted" : ""}" cx="${xOf(index)}" cy="${yOf(value)}" r="${highlighted ? 5 : 3.5}" fill="${color}"><title>${row.label} ${periods[index].label} ${isHourlyTrend ? "時給" : "収支"} ${formatMdTrendValue(value, metric)}</title></circle>`).join("");
+    return `<polyline class="md-trend-line ${highlighted ? "highlighted" : ""}" points="${points}" pathLength="1" style="stroke:${color}"></polyline>${dots}`;
   }).join("");
   const labels = periods.map((period, index) => `<text class="chart-label" x="${xOf(index)}" y="${height - 28}" text-anchor="middle">${escapeHTML(period.shortLabel)}</text>`).join("");
   const legendX = width - padding.right + 62;
   const legendY = padding.top + 4;
-  const legend = sortedRows.map((row, index) => {
-    const color = colors[index % colors.length];
+  const legend = rowRenderItems.map(({ row, color, highlighted }, index) => {
     const y = legendY + index * 38;
     const label = row.label.length > 15 ? `${row.label.slice(0, 14)}窶ｦ` : row.label;
-    const muted = state.mdTrendMutedLabels.has(row.label);
     return `
-      <g class="md-trend-legend-item ${muted ? "muted" : ""}" data-md-label="${escapeHTML(row.label)}" role="button" tabindex="0" aria-pressed="${!muted}">
+      <g class="md-trend-legend-item ${highlighted ? "highlighted" : ""}" data-md-label="${escapeHTML(row.label)}" role="button" tabindex="0" aria-pressed="${highlighted}">
         <rect x="${legendX}" y="${y}" width="210" height="28" rx="8" style="stroke:${color}"></rect>
         <rect class="md-trend-check-box" x="${legendX + 9}" y="${y + 8}" width="12" height="12" rx="3" style="stroke:${color}"></rect>
         <path class="md-trend-check-mark" d="M ${legendX + 12} ${y + 14} L ${legendX + 15} ${y + 17} L ${legendX + 20} ${y + 11}" style="stroke:${color}"></path>
@@ -6557,12 +6562,12 @@ function formatMdTrendValue(value, metric = "amount") {
   return metric === "hourly" ? `${yen.format(value)}/h` : yen.format(value);
 }
 
-function toggleMdTrendMuted(label) {
+function toggleMdTrendHighlight(label) {
   if (!label) return;
-  if (state.mdTrendMutedLabels.has(label)) {
-    state.mdTrendMutedLabels.delete(label);
+  if (state.mdTrendHighlightedLabels.has(label)) {
+    state.mdTrendHighlightedLabels.delete(label);
   } else {
-    state.mdTrendMutedLabels.add(label);
+    state.mdTrendHighlightedLabels.add(label);
   }
   renderYearChart();
 }

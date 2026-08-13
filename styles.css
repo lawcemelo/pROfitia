@@ -4375,10 +4375,13 @@ label {
   animation: chartLineDraw 0.9s ease-out forwards;
 }
 
-.md-trend-line.muted,
-.md-trend-dot.muted,
-.md-trend-legend-item.muted {
-  opacity: 0.28;
+.md-trend-line.highlighted {
+  stroke-width: 5;
+  filter: drop-shadow(0 0 5px rgba(49, 92, 155, 0.34));
+}
+
+.md-trend-dot.highlighted {
+  filter: drop-shadow(0 0 5px rgba(49, 92, 155, 0.42));
 }
 
 .md-total-net-bar {
@@ -4410,6 +4413,12 @@ label {
   stroke-width: 1.6;
 }
 
+.md-trend-legend-item.highlighted rect:first-child {
+  fill: rgba(255, 255, 255, 0.96);
+  stroke-width: 2.4;
+  filter: drop-shadow(0 0 5px rgba(49, 92, 155, 0.24));
+}
+
 .md-trend-legend-item:focus rect:first-child,
 .md-trend-legend-item:hover rect:first-child {
   filter: drop-shadow(0 0 4px rgba(49, 92, 155, 0.22));
@@ -4426,7 +4435,7 @@ label {
   stroke-width: 2;
 }
 
-.md-trend-legend-item.muted .md-trend-check-mark {
+.md-trend-legend-item:not(.highlighted) .md-trend-check-mark {
   display: none;
 }
 
@@ -4524,10 +4533,6 @@ label {
   transform-box: fill-box;
   transform-origin: center;
   animation: chartDotFade 0.35s ease-out 0.72s both;
-}
-
-.md-trend-dot.muted {
-  opacity: 0.28 !important;
 }
 
 @keyframes chartLineDraw {
