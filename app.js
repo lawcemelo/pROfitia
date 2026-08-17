@@ -6458,7 +6458,7 @@ function buildMdTopTrendRows(periods, metric = "amount") {
       };
     })
     .filter((row) => !isHourlyTrend || row.hasTrendValue)
-    .sort(compareMdTrendRowsForCurrentPeriod);
+    .sort(compareMdTrendRowsByDisplayedTotal);
 }
 
 function findMdTrendPeriod(periods, date) {
@@ -6471,7 +6471,7 @@ function findMdTrendPeriod(periods, date) {
 
 function renderMdTrendLineChart(periods, rows, metric = "amount") {
   const isHourlyTrend = metric === "hourly";
-  const sortedRows = [...rows].sort(compareMdTrendRowsForCurrentPeriod);
+  const sortedRows = [...rows].sort(compareMdTrendRowsByDisplayedTotal);
   const width = 960;
   const height = 300;
   const padding = { top: 24, right: 278, bottom: 52, left: 78 };
@@ -6572,10 +6572,10 @@ function toggleMdTrendHighlight(label) {
   renderYearChart();
 }
 
-function compareMdTrendRowsForCurrentPeriod(a, b) {
+function compareMdTrendRowsByDisplayedTotal(a, b) {
   const aCurrent = a.values.at(-1) || 0;
   const bCurrent = b.values.at(-1) || 0;
-  return bCurrent - aCurrent || b.total - a.total || a.label.localeCompare(b.label, "ja", { numeric: true, sensitivity: "base" });
+  return b.total - a.total || bCurrent - aCurrent || a.label.localeCompare(b.label, "ja", { numeric: true, sensitivity: "base" });
 }
 
 function compareAmountDescending(a, b) {
