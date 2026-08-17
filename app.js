@@ -17,6 +17,8 @@ const MONTHLY_BAR_AXIS_MAX_STORAGE_KEY = "game-ledger-monthly-bar-axis-max";
 const MONTHLY_NET_AXIS_MAX_STORAGE_KEY = "game-ledger-monthly-net-axis-max";
 const WEEKLY_MD_AXIS_MAX_STORAGE_KEY = "game-ledger-weekly-md-axis-max";
 const MONTHLY_MD_AXIS_MAX_STORAGE_KEY = "game-ledger-monthly-md-axis-max";
+const WEEKLY_MD_HOURLY_AXIS_MAX_STORAGE_KEY = "game-ledger-weekly-md-hourly-axis-max";
+const MONTHLY_MD_HOURLY_AXIS_MAX_STORAGE_KEY = "game-ledger-monthly-md-hourly-axis-max";
 const WEEKLY_MD_TOTAL_AXIS_MAX_STORAGE_KEY = "game-ledger-weekly-md-total-axis-max";
 const MONTHLY_MD_TOTAL_AXIS_MAX_STORAGE_KEY = "game-ledger-monthly-md-total-axis-max";
 const WEEKLY_TREND_COUNT_STORAGE_KEY = "game-ledger-weekly-trend-count";
@@ -61,6 +63,10 @@ const APP_STORAGE_KEYS = [
   MONTHLY_NET_AXIS_MAX_STORAGE_KEY,
   WEEKLY_MD_AXIS_MAX_STORAGE_KEY,
   MONTHLY_MD_AXIS_MAX_STORAGE_KEY,
+  WEEKLY_MD_HOURLY_AXIS_MAX_STORAGE_KEY,
+  MONTHLY_MD_HOURLY_AXIS_MAX_STORAGE_KEY,
+  WEEKLY_MD_TOTAL_AXIS_MAX_STORAGE_KEY,
+  MONTHLY_MD_TOTAL_AXIS_MAX_STORAGE_KEY,
   WEEKLY_TREND_COUNT_STORAGE_KEY,
   MONTHLY_TREND_COUNT_STORAGE_KEY,
   CHARACTER_STORAGE_KEY,
@@ -279,6 +285,8 @@ const state = {
   monthlyNetAxisMax: Number(localStorage.getItem(MONTHLY_NET_AXIS_MAX_STORAGE_KEY) || localStorage.getItem(NET_AXIS_MAX_STORAGE_KEY) || 0),
   weeklyMdAxisMax: Number(localStorage.getItem(WEEKLY_MD_AXIS_MAX_STORAGE_KEY) || 0),
   monthlyMdAxisMax: Number(localStorage.getItem(MONTHLY_MD_AXIS_MAX_STORAGE_KEY) || 0),
+  weeklyMdHourlyAxisMax: Number(localStorage.getItem(WEEKLY_MD_HOURLY_AXIS_MAX_STORAGE_KEY) || 0),
+  monthlyMdHourlyAxisMax: Number(localStorage.getItem(MONTHLY_MD_HOURLY_AXIS_MAX_STORAGE_KEY) || 0),
   weeklyMdTotalAxisMax: Number(localStorage.getItem(WEEKLY_MD_TOTAL_AXIS_MAX_STORAGE_KEY) || 0),
   monthlyMdTotalAxisMax: Number(localStorage.getItem(MONTHLY_MD_TOTAL_AXIS_MAX_STORAGE_KEY) || 0),
   weeklyTrendCount: clampTrendPeriodCount(localStorage.getItem(WEEKLY_TREND_COUNT_STORAGE_KEY) || 12),
@@ -1926,14 +1934,15 @@ function updateAxisLimitInputs() {
   const limits = currentAxisLimits();
   if (state.summaryView === "md") {
     const isHourlyTrend = state.mdTrendMetric === "hourly";
+    const mdAxisValue = isHourlyTrend ? limits.mdHourly : limits.md;
     elements.barAxisMaxButton.disabled = false;
     elements.barAxisMaxButton.textContent = "合計収支軸登録";
     elements.barAxisMaxDisplay.parentElement.firstChild.textContent = "合計収支軸 ";
     elements.barAxisMaxDisplay.textContent = limits.mdTotal > 0 ? yen.format(limits.mdTotal) : "制限なし";
-    elements.netAxisMaxButton.disabled = isHourlyTrend;
-    elements.netAxisMaxButton.textContent = isHourlyTrend ? "MD時給軸 自動" : "MD収支軸登録";
+    elements.netAxisMaxButton.disabled = false;
+    elements.netAxisMaxButton.textContent = isHourlyTrend ? "MD時給軸登録" : "MD収支軸登録";
     elements.netAxisMaxDisplay.parentElement.firstChild.textContent = isHourlyTrend ? "MD時給軸 " : "MD収支軸 ";
-    elements.netAxisMaxDisplay.textContent = isHourlyTrend ? "自動" : limits.md > 0 ? yen.format(limits.md) : "制限なし";
+    elements.netAxisMaxDisplay.textContent = mdAxisValue > 0 ? yen.format(mdAxisValue) : "制限なし";
     return;
   }
   elements.barAxisMaxButton.disabled = false;
@@ -1975,10 +1984,11 @@ function updateTrendPeriodCount() {
 function updateAxisLimit(axis) {
   const limits = currentAxisLimits();
   const isMdAxis = state.summaryView === "md";
+  const isMdHourlyAxis = isMdAxis && state.mdTrendMetric === "hourly" && axis !== "bar";
   const label = isMdAxis
-    ? axis === "bar" ? "合計収支上限値" : "MD収支上限値"
+    ? axis === "bar" ? "合計収支上限値" : isMdHourlyAxis ? "MD時給上限値" : "MD収支上限値"
     : axis === "bar" ? "収入支出上限値" : "収支上限値";
-  const currentValue = isMdAxis ? axis === "bar" ? limits.mdTotal : limits.md : axis === "bar" ? limits.bar : limits.net;
+  const currentValue = isMdAxis ? axis === "bar" ? limits.mdTotal : isMdHourlyAxis ? limits.mdHourly : limits.md : axis === "bar" ? limits.bar : limits.net;
   const input = window.prompt(`${label}（0で未設定）`, currentValue > 0 ? formatAmount(currentValue) : "");
   if (input === null) return;
   const value = parseAmount(input);
@@ -1986,6 +1996,9 @@ function updateAxisLimit(axis) {
     if (isMdAxis && axis === "bar") {
       state.weeklyMdTotalAxisMax = value;
       localStorage.setItem(WEEKLY_MD_TOTAL_AXIS_MAX_STORAGE_KEY, String(value));
+    } else if (isMdHourlyAxis) {
+      state.weeklyMdHourlyAxisMax = value;
+      localStorage.setItem(WEEKLY_MD_HOURLY_AXIS_MAX_STORAGE_KEY, String(value));
     } else if (isMdAxis) {
       state.weeklyMdAxisMax = value;
       localStorage.setItem(WEEKLY_MD_AXIS_MAX_STORAGE_KEY, String(value));
@@ -2000,6 +2013,9 @@ function updateAxisLimit(axis) {
     if (isMdAxis && axis === "bar") {
       state.monthlyMdTotalAxisMax = value;
       localStorage.setItem(MONTHLY_MD_TOTAL_AXIS_MAX_STORAGE_KEY, String(value));
+    } else if (isMdHourlyAxis) {
+      state.monthlyMdHourlyAxisMax = value;
+      localStorage.setItem(MONTHLY_MD_HOURLY_AXIS_MAX_STORAGE_KEY, String(value));
     } else if (isMdAxis) {
       state.monthlyMdAxisMax = value;
       localStorage.setItem(MONTHLY_MD_AXIS_MAX_STORAGE_KEY, String(value));
@@ -2017,8 +2033,20 @@ function updateAxisLimit(axis) {
 
 function currentAxisLimits() {
   return state.periodMode === "week"
-    ? { bar: state.weeklyBarAxisMax, net: state.weeklyNetAxisMax, md: state.weeklyMdAxisMax, mdTotal: state.weeklyMdTotalAxisMax }
-    : { bar: state.monthlyBarAxisMax, net: state.monthlyNetAxisMax, md: state.monthlyMdAxisMax, mdTotal: state.monthlyMdTotalAxisMax };
+    ? {
+      bar: state.weeklyBarAxisMax,
+      net: state.weeklyNetAxisMax,
+      md: state.weeklyMdAxisMax,
+      mdHourly: state.weeklyMdHourlyAxisMax,
+      mdTotal: state.weeklyMdTotalAxisMax,
+    }
+    : {
+      bar: state.monthlyBarAxisMax,
+      net: state.monthlyNetAxisMax,
+      md: state.monthlyMdAxisMax,
+      mdHourly: state.monthlyMdHourlyAxisMax,
+      mdTotal: state.monthlyMdTotalAxisMax,
+    };
 }
 
 function updateStickyTopHeight() {
@@ -2942,6 +2970,8 @@ function exportAppData() {
     monthlyNetAxisMax: state.monthlyNetAxisMax,
     weeklyMdAxisMax: state.weeklyMdAxisMax,
     monthlyMdAxisMax: state.monthlyMdAxisMax,
+    weeklyMdHourlyAxisMax: state.weeklyMdHourlyAxisMax,
+    monthlyMdHourlyAxisMax: state.monthlyMdHourlyAxisMax,
     weeklyMdTotalAxisMax: state.weeklyMdTotalAxisMax,
     monthlyMdTotalAxisMax: state.monthlyMdTotalAxisMax,
   };
@@ -2993,6 +3023,8 @@ function importAppData(event) {
       state.monthlyNetAxisMax = Number(data.monthlyNetAxisMax || data.netAxisMax || 0);
       state.weeklyMdAxisMax = Number(data.weeklyMdAxisMax || 0);
       state.monthlyMdAxisMax = Number(data.monthlyMdAxisMax || 0);
+      state.weeklyMdHourlyAxisMax = Number(data.weeklyMdHourlyAxisMax || 0);
+      state.monthlyMdHourlyAxisMax = Number(data.monthlyMdHourlyAxisMax || 0);
       state.weeklyMdTotalAxisMax = Number(data.weeklyMdTotalAxisMax || 0);
       state.monthlyMdTotalAxisMax = Number(data.monthlyMdTotalAxisMax || 0);
       localStorage.setItem(THEME_STORAGE_KEY, state.theme);
@@ -3005,6 +3037,8 @@ function importAppData(event) {
       localStorage.setItem(MONTHLY_NET_AXIS_MAX_STORAGE_KEY, String(state.monthlyNetAxisMax));
       localStorage.setItem(WEEKLY_MD_AXIS_MAX_STORAGE_KEY, String(state.weeklyMdAxisMax));
       localStorage.setItem(MONTHLY_MD_AXIS_MAX_STORAGE_KEY, String(state.monthlyMdAxisMax));
+      localStorage.setItem(WEEKLY_MD_HOURLY_AXIS_MAX_STORAGE_KEY, String(state.weeklyMdHourlyAxisMax));
+      localStorage.setItem(MONTHLY_MD_HOURLY_AXIS_MAX_STORAGE_KEY, String(state.monthlyMdHourlyAxisMax));
       localStorage.setItem(WEEKLY_MD_TOTAL_AXIS_MAX_STORAGE_KEY, String(state.weeklyMdTotalAxisMax));
       localStorage.setItem(MONTHLY_MD_TOTAL_AXIS_MAX_STORAGE_KEY, String(state.monthlyMdTotalAxisMax));
       localStorage.setItem(MD_LAYOUT_STORAGE_KEY, state.mdLayout);
@@ -6478,10 +6512,10 @@ function renderMdTrendLineChart(periods, rows, metric = "amount") {
   const chartWidth = width - padding.left - padding.right;
   const chartHeight = height - padding.top - padding.bottom;
   const axisLimits = currentAxisLimits();
-  const mdAxisMax = axisLimits.md;
+  const mdAxisMax = isHourlyTrend ? axisLimits.mdHourly : axisLimits.md;
   const totalAxisMax = axisLimits.mdTotal;
   const mdAutoValues = sortedRows.flatMap((row) => row.values.map((value) => Math.max(value, 0)));
-  const maxValue = !isHourlyTrend && mdAxisMax > 0 ? mdAxisMax : niceCeil(Math.max(...mdAutoValues, 1));
+  const maxValue = mdAxisMax > 0 ? mdAxisMax : niceCeil(Math.max(...mdAutoValues, 1));
   const maxTotalAmount = totalAxisMax > 0 ? totalAxisMax : niceCeil(Math.max(...periods.map((period) => Math.max(period.net, 0)), 1));
   const periodSlotWidth = chartWidth / Math.max(periods.length, 1);
   const xOf = (index) => padding.left + periodSlotWidth * index + periodSlotWidth / 2;
